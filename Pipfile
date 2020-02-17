@@ -1,0 +1,26 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+"flake8" = "*"
+alabaster = "*"
+autoflake = "*"
+black = "*"
+bump2version = "*"
+coverage = "*"
+invoke = "*"
+isort = "*"
+pylint = "*"
+pytest = "*"
+sphinx = "*"
+vulture = "*"
+wheel = "*"
+yapf = "*"
+
+[packages]
+respacy = {path = ".", editable = true}
+
+[pipenv]
+allow_prereleases = true
