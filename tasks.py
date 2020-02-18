@@ -8,7 +8,6 @@ import platform
 
 from invoke import task
 from pathlib import Path
-import webbrowser
 
 
 ROOT_DIR = Path(__file__).parent
@@ -128,7 +127,6 @@ def coverage(c, publish=False):
     else:
         # Build a local report
         c.run("coverage html")
-        webbrowser.open(COVERAGE_REPORT.as_uri())
 
 
 @task
@@ -137,7 +135,6 @@ def docs(c):
     Generate documentation
     """
     c.run("sphinx-build -b html {} {}".format(DOCS_DIR, DOCS_BUILD_DIR))
-    webbrowser.open(DOCS_INDEX.as_uri())
 
 
 @task
