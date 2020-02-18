@@ -53,16 +53,16 @@ def format(c, check=False):
     c.run("autoflake {} {}".format(" ".join(autoflake_options), python_dirs_string))
     
     # Run yapf
-    yapf_options = '--recursive {}'.format('--diff' if check else '--in-place')
+    yapf_options = "--recursive {}".format("--diff" if check else "--in-place")
     c.run("yapf {} {}".format(yapf_options, python_dirs_string))
     
     # Run isort
     isort_options = [
-        '--check-only' if check else '',
+        "--check-only" if check else "",
         "--apply",
         "--combine-as",
         "--force-grid-wrap=0",
-        "--line-width 88", # PEP 8 says 79, black 88. We black.
+        "--line-width 79", # PEP 8 says 79.
         "--multi-line=3",
         "--recursive",
         "--trailing-comma",
@@ -70,7 +70,11 @@ def format(c, check=False):
     c.run("isort {} {}".format(" ".join(isort_options), python_dirs_string))
 
     # Run black
-    c.run("black {} {}".format("--check" if check else "", python_dirs_string))
+    black_options = [
+        "--check" if check else "",
+        "--line-length 79",
+    ]
+    c.run("black {} {}".format(" ".join(black_options), python_dirs_string))
 
     # Run vulture
     vulture_options = [
