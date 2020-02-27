@@ -10,7 +10,13 @@ with open("README.rst") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-requirements = []
+requirements = [
+    "jsonschema",
+    "regex",
+    "spacy>=2.2.2",
+    "wasabi",
+    "plac"
+]
 
 setup_requirements = ["pytest-runner"]
 
@@ -19,7 +25,7 @@ test_requirements = ["pytest"]
 setup(
     author="Paolo Arduin",
     author_email="paolo.arduin@errequadrosrl.com",
-    python_requires=">=3.5",
+    python_requires=">=3.6",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",

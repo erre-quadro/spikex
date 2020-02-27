@@ -133,3 +133,10 @@ dmypy.json
 
 # sonarlint
 .sonarlint/
+
+# benchmark
+.benchmarks/
+benchmarks/
+
+# profile
+*.prof

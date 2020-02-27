@@ -1,0 +1,1 @@
+pipenv run pytest benchmarks --benchmark-autosave

@@ -10,18 +10,26 @@ autoflake = "*"
 black = "*"
 bump2version = "*"
 coverage = "*"
+en-core-web-sm = {file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.2.0/en_core_web_sm-2.2.0.tar.gz"}
 invoke = "*"
 isort = "*"
+mock = "*"
+py-spy = "*"
 pylint = "*"
 pytest = "*"
+pytest-benchmark = "*"
 sphinx = "*"
 vulture = "*"
 wheel = "*"
 yapf = "*"
-en-core-web-sm = {file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.2.0/en_core_web_sm-2.2.0.tar.gz"}
 
 [packages]
+jsonschema = "*"
+regex = "*"
 respacy = {path = ".",editable = true}
+typer = "*"
+plac = "*"
+wasabi = "*"
 spacy = "*"
 
 [pipenv]
