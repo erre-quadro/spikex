@@ -71,7 +71,7 @@ def find_acronym(
     return long_index, long_index_end
 
 
-def find_abbreviation(
+def find_sh_abbreviation(
     *, long_form: str, long_index: int, short_form: str, short_index: int
 ) -> Union[Tuple[int, int], None]:
     """
@@ -183,7 +183,7 @@ def find_abbreviation(
 
     # Try scispaCy abbreviation then
     if long_bounds is None:
-        long_bounds = find_abbreviation(
+        long_bounds = find_sh_abbreviation(
             long_form=long_form,
             long_index=long_index,
             short_form=short_form,

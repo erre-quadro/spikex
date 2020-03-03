@@ -1,7 +1,7 @@
 from respacy.abbreviation import find_abbreviation
 
 
-def test_find_abbreviation_multiword(nlp):
+def test_find_abbreviation_acronyms(nlp):
     # Base case
     doc = nlp("this is a short abbreviation (asa)")
     long_form = doc[0:5]
@@ -87,7 +87,7 @@ def test_find_abbreviation_multiword(nlp):
     assert long_form.text == "a short abbreviation"
 
 
-def test_find_abbreviation_singleword(nlp):
+def test_find_sh_abbreviation(nlp):
     # Basic case
     doc = nlp("abbreviation (abbrn)")
     long = doc[0:1]
