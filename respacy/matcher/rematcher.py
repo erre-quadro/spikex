@@ -247,7 +247,7 @@ def _preprocess_pattern(pattern):
 
         if not isinstance(tokenspec, dict):
             raise ValueError(Errors.E154.format())
-        for attr, value in tokenspec.items():
+        for attr, value in {**tokenspec}.items():
             # normalize case
             if attr.islower():
                 tokenspec[attr.upper()] = value
