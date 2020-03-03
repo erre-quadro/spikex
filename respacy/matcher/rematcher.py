@@ -39,17 +39,17 @@ class REMatcher(object):
 
     def __contains__(self, key: str):
         """
-        Check whether the matcher contains rules for a match ID.
+        Check whether the matcher contains rules for a key.
 
         Parameters
         ----------
         key: str
-            The match ID.
+            The key.
 
         Returns
         -------
         bool
-            Whether the matcher contains rules for this match ID.
+            Whether the matcher contains rules for this key.
         """
         return key in self._patterns
 
@@ -92,8 +92,8 @@ class REMatcher(object):
         Add a match-rule to the matcher. 
         A match-rule consists of: 
             an ID key, 
-            an on_match callback, 
-            one or more patterns. 
+            a list of patterns,
+            an on_match callback. 
         If the key exists, the patterns are appended to the 
         previous ones, and the previous on_match callback is replaced. The 
         `on_match` callback will receive the arguments `(matcher, doc, i, matches)`. 
@@ -121,12 +121,8 @@ class REMatcher(object):
             The match ID.
         patterns: list
             The patterns to add for the given key.
-        on_match: callable
-            Optional callback executed on match.
-        *_patterns: list
-            For backwards compatibility: list of patterns to add
-            as variable arguments. Will be ignored if a list of patterns is
-            provided as the second argument.
+        on_match: callable, optional
+             , by default None.
         """
         errors = {}
         if on_match is not None and not hasattr(on_match, "__call__"):
@@ -172,7 +168,7 @@ class REMatcher(object):
 
     def __call__(self, doc: Doc, sort: bool = False):
         """
-        Find all token sequences matching the supplied pattern.
+        Find all token sequences matching the supplied patterns.
 
         Parameters
         ----------
@@ -182,9 +178,9 @@ class REMatcher(object):
         Returns
         -------
         list
-            A list of `(key, start, end)` tuples,
+            A list of `(key, i, start, end)` tuples,
             describing the matches. A match tuple describes a span
-            `doc[start:end]`. The `label_id` and `key` are both integers.
+            `doc[start:end]` matched by the *i-th* pattern of the *key*.
         """
         if (
             len(set(("LEMMA", "POS", "TAG")) & self._seen_attrs) > 0
@@ -196,33 +192,32 @@ class REMatcher(object):
             raise ValueError(Errors.E156.format())
 
         matches = []
-        lendoc = len(doc)
+        doclen = len(doc)
         matcher = Matcher(doc.vocab)
 
         for key, i, start, end in find_re_matches(doc, self._specs):
             candidate = doc[start:end]
-            if lendoc == len(candidate):
+            if doclen == len(candidate):
                 matcher.add(
                     self._encode_keyi(key, i), [self._patterns[key][i]]
                 )
                 continue
             catcher = self._specs[key][i][0]
-            for s, e in catcher(candidate):
-                match = (key, i, s, e)
-                on_match = self._callbacks.get(key, None)
-                if on_match is not None:
-                    # Wrap match in list for spaCy API compliance
-                    on_match(self, doc, 0, [match])
-                matches.append(match)
+            matches.extend((key, i, s, e) for s, e in catcher(candidate))
 
         for keyi, start, end in matcher(doc):
             key, i = self._decode_keyi(doc.vocab.strings[keyi])
             matches.append((key, i, start, end))
 
-        if not sort:
-            return matches
+        if sort:
+            matches.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
 
-        return sorted(matches, key=lambda x: (x[0], x[1], x[2], x[3]))
+        for i, match in enumerate(matches):
+            on_match = self._callbacks.get(match[0], None)
+            if on_match is not None:
+                on_match(self, doc, i, matches)
+
+        return matches
 
     @staticmethod
     def _encode_keyi(key, i):
@@ -539,7 +534,7 @@ def _regex_wrap_op(op, text):
         "*": f"(?:{text}\\W*)*",
         "+": f"(?:{text}\\W*)+",
         "?": f"(?:{text}(?:\\W+|\\b|$))?",
-        "!": f"(?:{text}(?:\\W+|\\b|$)){0}",
+        "!": f"(?!{text}(?:\\W+|\\b|$))[^ ]+",
         "1": f"(?:{text}(?:\\W+|\\b|$))",
     }
     if op not in lookup:
@@ -567,14 +562,3 @@ def find_re_matches(
                     " ".join([t.lemma_ for t in doc[start:end]])
                 ):
                     yield (key, i, start, end)
-
-                # lemma_doc = doc[startt:endt]
-                # lemma_tokens = [t.lemma_ for t in lemma_doc]
-                # lemma_text = " ".join(lemma_tokens)
-                # maxllen = len(lemma_tokens)
-                # for matchl in spec[2].finditer(lemma_text):
-                #     spanl = lemma_text[matchl.start(): matchl.end()].strip().split(" ")
-                #     lenspanl = len(spanl)
-                #     for j in range(maxllen):
-                #         if lemma_tokens[j] == spanl[0] and lemma_tokens[j: j + lenspanl] == spanl:
-                #             yield (key, i, startt + j, startt + j + lenspanl)
