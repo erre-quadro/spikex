@@ -110,10 +110,6 @@ class REMatcher(object):
         and '*' patterns in a row and their matches overlap, the first
         operator will behave non-greedily. This quirk in the semantics makes
         the matcher more efficient, by avoiding the need for back-tracking.
-        As of spaCy v2.2.2, Matcher.add supports the future API, which makes
-        the patterns the second argument and a list (instead of a variable
-        number of arguments). The on_match callback becomes an optional keyword
-        argument.
 
         Parameters
         ----------
@@ -178,9 +174,9 @@ class REMatcher(object):
         Returns
         -------
         list
-            A list of `(key, i, start, end)` tuples,
+            A list of `(match_id, start, end)` tuples,
             describing the matches. A match tuple describes a span
-            `doc[start:end]` matched by the *i-th* pattern of the *key*.
+            `doc[start:end]`.
         """
         if (
             len(set(("LEMMA", "POS", "TAG")) & self._seen_attrs) > 0
@@ -196,39 +192,33 @@ class REMatcher(object):
         matcher = Matcher(doc.vocab)
 
         for key, i, start, end in find_re_matches(doc, self._specs):
+            norm_key = (
+                doc.vocab.strings.add(key)
+                if key not in doc.vocab.strings
+                else doc.vocab.strings[key]
+            )
             candidate = doc[start:end]
             if doclen == len(candidate):
                 matcher.add(
-                    self._encode_keyi(key, i), [self._patterns[key][i]]
+                    norm_key, [self._patterns[key][i]]
                 )
                 continue
             catcher = self._specs[key][i][0]
-            matches.extend((key, i, s, e) for s, e in catcher(candidate))
+            matches.extend((norm_key, s, e) for s, e in catcher(candidate))
 
-        for keyi, start, end in matcher(doc):
-            key, i = self._decode_keyi(doc.vocab.strings[keyi])
-            matches.append((key, i, start, end))
+        for norm_key, start, end in matcher(doc):
+            matches.append((norm_key, start, end))
 
         if sort:
-            matches.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
+            matches.sort(key=lambda x: (x[0], x[1], x[2]))
 
         for i, match in enumerate(matches):
-            on_match = self._callbacks.get(match[0], None)
+            key = doc.vocab.strings[match[0]]
+            on_match = self._callbacks.get(key, None)
             if on_match is not None:
                 on_match(self, doc, i, matches)
 
         return matches
-
-    @staticmethod
-    def _encode_keyi(key, i):
-        return f"{key}-{i}"
-
-    @staticmethod
-    def _decode_keyi(keyi):
-        sep = keyi.rfind("-")
-        if sep < 0:
-            raise KeyError
-        return keyi[:sep], int(keyi[sep + 1 :])
 
 
 def _preprocess_pattern(pattern):

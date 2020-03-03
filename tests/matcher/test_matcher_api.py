@@ -39,8 +39,8 @@ def test_matcher_from_usage_docs(en_vocab):
     pos_patterns = [[{"ORTH": emoji}] for emoji in pos_emoji]
 
     def label_sentiment(matcher, doc, i, matches):
-        match_id, i, start, end = matches[0]
-        if match_id == "HAPPY":
+        match_id, start, end = matches[i]
+        if match_id == 2686646543460454932:
             doc.sentiment += 0.1
         span = doc[start:end]
         with doc.retokenize() as retokenizer:
@@ -69,27 +69,27 @@ def test_matcher_no_match(matcher, en_vocab):
 
 def test_matcher_match_start(matcher, en_vocab):
     doc = Doc(en_vocab, words=["JavaScript", "is", "good"])
-    assert matcher(doc) == [("JS", 0, 0, 1)]
+    assert matcher(doc) == [(10109498671757250149, 0, 1)]
 
 
 def test_matcher_match_end(matcher, en_vocab):
     words = ["I", "like", "java"]
     doc = Doc(en_vocab, words=words)
-    assert matcher(doc) == [("Java", 0, 2, 3)]
+    assert matcher(doc) == [(7112935854966758681, 2, 3)]
 
 
 def test_matcher_match_middle(matcher, en_vocab):
     words = ["I", "like", "Google", "Now", "best"]
     doc = Doc(en_vocab, words=words)
-    assert matcher(doc) == [("GoogleNow", 0, 2, 4)]
+    assert matcher(doc) == [(11749420825531439595, 2, 4)]
 
 
 def test_matcher_match_multi(matcher, en_vocab):
     words = ["I", "like", "Google", "Now", "and", "java", "best"]
     doc = Doc(en_vocab, words=words)
     assert matcher(doc) == [
-        ("GoogleNow", 0, 2, 4),
-        ("Java", 0, 5, 6),
+        (11749420825531439595, 2, 4),
+        (7112935854966758681, 5, 6),
     ]
 
 
@@ -100,11 +100,11 @@ def test_matcher_empty_dict(en_vocab):
     matcher.add("A.C", [[{"ORTH": "a"}, {}, {"ORTH": "c"}]])
     matches = matcher(doc)
     assert len(matches) == 1
-    assert matches[0][1:] == (0, 0, 3)
+    assert matches[0][1:] == (0, 3)
     matcher = REMatcher()
     matcher.add("A.", [[{"ORTH": "a"}, {}]])
     matches = matcher(doc)
-    assert matches[0][1:] == (0, 0, 2)
+    assert matches[0][1:] == (0, 2)
 
 
 def test_matcher_operator_shadow(en_vocab):
@@ -114,7 +114,7 @@ def test_matcher_operator_shadow(en_vocab):
     matcher.add("A.C", [pattern])
     matches = matcher(doc)
     assert len(matches) == 1
-    assert matches[0][1:] == (0, 0, 3)
+    assert matches[0][1:] == (0, 3)
 
 
 def test_matcher_match_zero(matcher, en_vocab):
@@ -171,7 +171,7 @@ def test_matcher_any_token_operator(en_vocab):
     matcher = REMatcher()
     matcher.add("TEST", [[{"ORTH": "test"}, {"OP": "*"}]])
     doc = Doc(en_vocab, words=["test", "hello", "world"])
-    matches = [doc[start:end].text for _, _, start, end in matcher(doc)]
+    matches = [doc[start:end].text for _, start, end in matcher(doc)]
     assert len(matches) == 3
     assert matches[0] == "test"
     assert matches[1] == "test hello"

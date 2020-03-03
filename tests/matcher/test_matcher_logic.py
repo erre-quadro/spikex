@@ -56,7 +56,7 @@ def test_greedy_matching(doc, text, pattern, re_pattern):
     matches = matcher(doc)
     re_matches = [m.span() for m in re.finditer(re_pattern, text)]
     for match, re_match in zip(matches, re_matches):
-        assert match[2:] == re_match
+        assert match[1:] == re_match
 
 
 @pytest.mark.xfail
@@ -140,7 +140,7 @@ def test_matcher_sets_return_correct_tokens(en_vocab):
     matcher.add("TEST", patterns)
     doc = Doc(en_vocab, words="zero one two three".split())
     matches = matcher(doc)
-    texts = [Span(doc, s, e, label=L).text for L, _, s, e in matches]
+    texts = [Span(doc, s, e, label=L).text for L, s, e in matches]
     assert texts == ["zero", "one", "two"]
 
 

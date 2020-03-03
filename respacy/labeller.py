@@ -16,7 +16,7 @@ class Labeller:
         Parameters
         ----------
         label: str
-            The label to assign whether a pattern matches.
+            The label to assign to tokens whether a pattern matches.
         patterns: list
             The patterns to add for the given label.
         on_match: callable, optional
@@ -43,7 +43,8 @@ class Labeller:
             `doc[start:end]` matched by the *i-th* pattern of the *label*.
         """
         matches = self._matcher(doc)
-        for label, i, start, end in matches:
+        for key, start, end in matches:
+            label = doc.vocab.strings[key]
             for token in doc[start:end]:
                 if label in token._.labels:
                     continue
