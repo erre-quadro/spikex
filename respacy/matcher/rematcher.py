@@ -2,11 +2,14 @@ from typing import Any, Dict, List, Tuple
 
 import regex as re
 from spacy.errors import Errors, MatchPatternError
+from spacy.matcher import Matcher
 from spacy.tokens import Doc, Token
 from spacy.util import get_json_validator, validate_json
 
 from ..util import span_idx2i
 from ._schemas import TOKEN_PATTERN_SCHEMA
+
+REGEX_ONE_TOKEN = r"[^ ]+"
 
 
 class REMatcher(object):
@@ -147,10 +150,6 @@ class REMatcher(object):
             attrs = set(attr for token in pattern for attr in token.keys())
             self._seen_attrs.update(attrs)
 
-            # if attrs and not spec[1]:
-            #     skey = self._key2skey(key, spec)
-            #     self._matcher.add(skey, [spec[0]])
-
         self._patterns.setdefault(key, [])
         self._callbacks[key] = on_match
         self._patterns[key].extend(patterns)
@@ -171,7 +170,7 @@ class REMatcher(object):
         self._patterns.pop(key)
         self._callbacks.pop(key)
 
-    def __call__(self, doc: Doc):
+    def __call__(self, doc: Doc, sort: bool = False):
         """
         Find all token sequences matching the supplied pattern.
 
@@ -197,40 +196,50 @@ class REMatcher(object):
             raise ValueError(Errors.E156.format())
 
         matches = []
+        lendoc = len(doc)
+        matcher = Matcher(doc.vocab)
+
         for key, i, start, end in find_re_matches(doc, self._specs):
+            candidate = doc[start:end]
+            if lendoc == len(candidate):
+                matcher.add(
+                    self._encode_keyi(key, i), [self._patterns[key][i]]
+                )
+                continue
             catcher = self._specs[key][i][0]
-            for s, e in catcher(doc[start:end]):
+            for s, e in catcher(candidate):
                 match = (key, i, s, e)
                 on_match = self._callbacks.get(key, None)
                 if on_match is not None:
                     # Wrap match in list for spaCy API compliance
                     on_match(self, doc, 0, [match])
                 matches.append(match)
-        return matches
 
-    def _key2skey(self, key, spec):
-        return f"{key}-{self._specs[key].index(spec)}"
+        for keyi, start, end in matcher(doc):
+            key, i = self._decode_keyi(doc.vocab.strings[keyi])
+            matches.append((key, i, start, end))
 
-    def _skey2keyi(self, skey):
-        sep = skey.rfind("-")
+        if not sort:
+            return matches
+
+        return sorted(matches, key=lambda x: (x[0], x[1], x[2], x[3]))
+
+    @staticmethod
+    def _encode_keyi(key, i):
+        return f"{key}-{i}"
+
+    @staticmethod
+    def _decode_keyi(keyi):
+        sep = keyi.rfind("-")
         if sep < 0:
             raise KeyError
-        key = skey[:sep]
-        if key not in self._specs:
-            raise KeyError
-        i = int(skey[sep + 1 :])
-        if i >= len(self._specs[key]):
-            raise KeyError
-        return key, i
-
-    def _skey2spec(self, skey: str):
-        key, i = self._skey2keyi(skey)
-        return self._specs[key][i]
+        return keyi[:sep], int(keyi[sep + 1 :])
 
 
 def _preprocess_pattern(pattern):
 
-    regexitems = []
+    regextitems = []
+    regexlitems = []
     catcheritems = []
     specmax = len(pattern)
 
@@ -263,18 +272,19 @@ def _preprocess_pattern(pattern):
         cf = _catcherfunc_from_tokenspec(tokenspec) or None
         catcheritems.append((op, cf))
 
-        tokenregex = _regex_from_tokenspec(tokenspec, i == 0)
-        regexitems.append(tokenregex)
+        tregex = _regext_from_tokenspec(tokenspec, i == 0)
+        regextitems.append(tregex)
 
-    regex = (
-        r"[\s\S]+"  # in case it's only about attributes, get all text
-        if not regexitems or all(r"[^ ]+" in r for r in regexitems)
-        else r"".join([r for r in regexitems if r])
-    )
+        lregex = _regexl_from_tokenspec(tokenspec, i == 0)
+        regexlitems.append(lregex)
+
+    tregex = _regex_from_items(regextitems)
+    lregex = _regex_from_items(regexlitems)
 
     return (
         _catcher_from_items(catcheritems),
-        re.compile(regex, flags=re.U | re.I),
+        re.compile(tregex, flags=re.U | re.I) if tregex else None,
+        re.compile(lregex, flags=re.U | re.I) if lregex else None,
     )
 
 
@@ -420,7 +430,16 @@ def get_token_attr(token: Token, attr: str):
     return getattr(token, fix_attr)
 
 
-def _regex_from_tokenspec(tokenspec, is_first=False):
+def _regex_from_items(items):
+    return (
+        # if only about attributes, no regex
+        None  # r"[\s\S]+"
+        if not items or all(REGEX_ONE_TOKEN in r for r in items)
+        else r"".join([r for r in items if r])
+    )
+
+
+def _regext_from_tokenspec(tokenspec, is_first=False):
 
     content = None
     no_escape = False
@@ -437,28 +456,46 @@ def _regex_from_tokenspec(tokenspec, is_first=False):
     elif "TEXT" in tokenspec:
         content = tokenspec["TEXT"]
 
-    regex = None
+    op = tokenspec["OP"] if "OP" in tokenspec else None
+    return _regex_from_content(
+        content,
+        no_escape=no_escape,
+        case_insensitive=case_insensitive,
+        is_first=is_first,
+        op=op,
+    )
 
-    if not regex and not content:
-        regex = r"[^ ]+"
-        if "OP" in tokenspec and tokenspec["OP"] != "!":
-            return _regex_wrap_op(tokenspec["OP"], regex)
+
+def _regexl_from_tokenspec(tokenspec, is_first=False):
+    content = tokenspec["LEMMA"] if "LEMMA" in tokenspec else None
+    op = tokenspec["OP"] if "OP" in tokenspec else None
+    return _regex_from_content(content, is_first=is_first, op=op)
+
+
+def _regex_from_content(
+    content, no_escape=False, case_insensitive=False, is_first=False, op=None
+):
+    regex = None
+    if not content:
+        regex = REGEX_ONE_TOKEN
+        if op is not None and op != "!":
+            return _regex_wrap_op(op, regex)
         return _regex_wrap_bounds(regex, is_first)
 
     if isinstance(content, dict):
         if "REGEX" in content:
             return content["REGEX"]
-        op = None
+        in_op = None
         exclude = False
         if "IN" in content:
-            op = "IN"
+            in_op = "IN"
         elif "NOT_IN" in content:
-            op = "NOT_IN"
+            in_op = "NOT_IN"
             exclude = True
         else:
             raise ValueError(Errors.E154.format())
         regex = _regex_pipe_terms(
-            (re.escape(t) if not no_escape else t for t in content[op]),
+            (re.escape(t) if not no_escape else t for t in content[in_op]),
             exclude=exclude,
             case_insensitive=case_insensitive,
         )
@@ -468,8 +505,8 @@ def _regex_from_tokenspec(tokenspec, is_first=False):
         if case_insensitive:
             regex = _regex_case_insensitive(regex)
 
-    if "OP" in tokenspec:
-        return _regex_wrap_op(tokenspec["OP"], regex)
+    if op is not None:
+        return _regex_wrap_op(op, regex)
 
     return _regex_wrap_bounds(regex, is_first)
 
@@ -514,25 +551,30 @@ def _regex_wrap_op(op, text):
 def find_re_matches(
     doc: Doc, specs: Dict[str, List[Tuple[Dict[str, Any]]]]
 ) -> List[Tuple[str, int, int, int]]:
-    # matches = []
     doc_text = doc.text
     maxdlen = len(doc)
     maxtlen = len(doc_text)
-    # recache = {}
     for key, values in specs.items():
         for i, spec in enumerate(values):
-            regex = spec[1]
-            if not regex:
+            if not spec[1]:
+                yield (key, i, 0, maxdlen)
                 continue
-            # if regex in recache:
-            #     matches.extend((key, i, s, e) for s, e in recache[regex])
-            #     continue
-            # recache[regex] = []
-            for match in regex.finditer(doc_text):
+            for match in spec[1].finditer(doc_text):
                 start, end = span_idx2i(
                     doc, match.start(), match.end(), maxtlen
                 )
-                yield (key, i, start, end)
-                # matches.append((key, i, start, end))
-                # recache[regex].append((start, end))
-    # return matches
+                if not spec[2] or spec[2].search(
+                    " ".join([t.lemma_ for t in doc[start:end]])
+                ):
+                    yield (key, i, start, end)
+
+                # lemma_doc = doc[startt:endt]
+                # lemma_tokens = [t.lemma_ for t in lemma_doc]
+                # lemma_text = " ".join(lemma_tokens)
+                # maxllen = len(lemma_tokens)
+                # for matchl in spec[2].finditer(lemma_text):
+                #     spanl = lemma_text[matchl.start(): matchl.end()].strip().split(" ")
+                #     lenspanl = len(spanl)
+                #     for j in range(maxllen):
+                #         if lemma_tokens[j] == spanl[0] and lemma_tokens[j: j + lenspanl] == spanl:
+                #             yield (key, i, startt + j, startt + j + lenspanl)
