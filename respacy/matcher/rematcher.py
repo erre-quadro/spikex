@@ -87,7 +87,6 @@ class REMatcher(object):
         return self[key] if key in self else default
 
     def add(self, key: str, patterns, on_match=None):
-        # TODO: fix docstring text
         """
         Add a match-rule to the matcher. 
         A match-rule consists of: 

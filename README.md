@@ -4,7 +4,7 @@ This repository contains a set of pipes which exploit and enhance spaCy in match
 
 ## Installation
 
-*COMING SOON* - Install package from PyPI:
+*SOON* - Install package from PyPI:
 ```bash
 pip install spacy
 ```
@@ -25,3 +25,7 @@ A pattern matching detector based on the logic of the spaCy [Matcher](https://sp
 
 ### Labeller
 A *REMatcher* exploitation for labelling text chunks based on patterns.
+
+## Benchmark
+
+*SOON*
