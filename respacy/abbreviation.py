@@ -6,7 +6,7 @@ from spacy.matcher import Matcher
 from spacy.tokens import Doc, Span
 
 
-def find_abbreviation_mwo(
+def find_acronym(
     *, long_form: str, long_index: int, short_form: str, short_index: int
 ) -> Union[Tuple[int, int], None]:
     """
@@ -71,7 +71,7 @@ def find_abbreviation_mwo(
     return long_index, long_index_end
 
 
-def find_abbreviation_swf(
+def find_abbreviation(
     *, long_form: str, long_index: int, short_form: str, short_index: int
 ) -> Union[Tuple[int, int], None]:
     """
@@ -173,17 +173,17 @@ def find_abbreviation(
     long_index = len(long_form) - 1
     short_index = len(short_form) - 1
 
-    # Check multiword first as preferred detection
-    long_bounds = find_abbreviation_mwo(
+    # Try acronym first
+    long_bounds = find_acronym(
         long_form=long_form,
         long_index=long_index,
         short_form=short_form,
         short_index=short_index,
     )
 
-    # If multiword detection failed, try singleword one
+    # Try scispaCy abbreviation then
     if long_bounds is None:
-        long_bounds = find_abbreviation_swf(
+        long_bounds = find_abbreviation(
             long_form=long_form,
             long_index=long_index,
             short_form=short_form,
@@ -194,7 +194,7 @@ def find_abbreviation(
     if long_bounds is None:
         return short_form_candidate, None
 
-    #
+    # Catch bounds
     if isinstance(long_bounds, int):
         long_i_start = long_i_end = long_bounds
     else:
