@@ -469,25 +469,18 @@ def _regex_from_content(
     if isinstance(content, dict):
         if "REGEX" in content:
             return content["REGEX"]
-        in_op = None
-        exclude = False
         if "IN" in content:
             in_op = "IN"
+            wrap_in_op = "1"
         elif "NOT_IN" in content:
             in_op = "NOT_IN"
-            exclude = True
+            wrap_in_op = "!"
         else:
             raise ValueError(Errors.E154.format())
-        regex = _regex_pipe_terms(
-            (re.escape(t) if not no_escape else t for t in content[in_op]),
-            exclude=exclude,
-            case_insensitive=case_insensitive,
-        )
+        regex = _regex_wrap_op(wrap_in_op, _regex_pipe_terms(content[in_op]))
 
     if not regex:
         regex = re.escape(content) if not no_escape else content
-        if case_insensitive:
-            regex = _regex_case_insensitive(regex)
 
     if op is not None:
         return _regex_wrap_op(op, regex)
@@ -495,23 +488,8 @@ def _regex_from_content(
     return _regex_wrap_bounds(regex, is_first)
 
 
-def _regex_case_insensitive(text):
-    return text  # "".join([f"[{c.upper()}{c.lower()}]" for c in text])
-
-
-def _regex_pipe_terms(terms, exclude=False, case_insensitive=False):
-    return r"".join(
-        [
-            r"(?",
-            r"!" if exclude else r":",
-            r"|".join(
-                [_regex_case_insensitive(term) for term in terms]
-                if case_insensitive
-                else terms
-            ),
-            r")",
-        ]
-    )
+def _regex_pipe_terms(terms):
+    return r"".join([r"(?:", r"|".join(terms), r")"])
 
 
 def _regex_wrap_bounds(text, is_first=False):
@@ -520,8 +498,8 @@ def _regex_wrap_bounds(text, is_first=False):
 
 def _regex_wrap_op(op, text):
     lookup = {
-        "*": f"(?:{text}\\W*)*",
-        "+": f"(?:{text}\\W*)+",
+        "*": f"(?:{text}(?:\\W+|\\b|$))*",
+        "+": f"(?:{text}(?:\\W+|\\b|$))+",
         "?": f"(?:{text}(?:\\W+|\\b|$))?",
         "!": f"(?!{text}(?:\\W+|\\b|$))[^ ]+",
         "1": f"(?:{text}(?:\\W+|\\b|$))",
@@ -543,6 +521,7 @@ def find_re_matches(
             if not spec[1]:
                 yield (key, i, 0, maxdlen)
                 continue
+            print(spec[1])
             for match in spec[1].finditer(doc_text):
                 start, end = span_idx2i(
                     doc, match.start(), match.end(), maxtlen

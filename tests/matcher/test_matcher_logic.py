@@ -130,6 +130,33 @@ def test_matcher_end_zero_plus(en_vocab):
     assert len(matcher(nlp("a b b"))) == 3
 
 
+def test_matcher_start_zero_plus(en_vocab):
+    matcher = Matcher()
+    pattern = [{"ORTH": "b", "OP": "*"}, {"ORTH": "c"}]
+    matcher.add("TSTEND", [pattern])
+    nlp = lambda string: Doc(en_vocab, words=string.split())
+    assert len(matcher(nlp("c"))) == 1
+    assert len(matcher(nlp("b c"))) == 2
+    assert len(matcher(nlp("a c"))) == 1
+    assert len(matcher(nlp("a b c"))) == 2
+    assert len(matcher(nlp("a b b c"))) == 3
+    assert len(matcher(nlp("b b c"))) == 3
+
+
+def test_matcher_start_zero_plus_not_in(en_vocab):
+    matcher = Matcher()
+    pattern = [{"ORTH": {"NOT_IN": ["t", "z"]}, "OP": "*"}, {"ORTH": "c"}]
+    matcher.add("TSTEND", [pattern])
+    nlp = lambda string: Doc(en_vocab, words=string.split())
+    assert len(matcher(nlp("c"))) == 1
+    assert len(matcher(nlp("b c"))) == 2
+    assert len(matcher(nlp("z c"))) == 1
+    assert len(matcher(nlp("z b c"))) == 2
+    assert len(matcher(nlp("t z b c"))) == 2
+    assert len(matcher(nlp("a t z c"))) == 1
+    assert len(matcher(nlp("a t z b c"))) == 2
+
+
 def test_matcher_sets_return_correct_tokens(en_vocab):
     matcher = Matcher()
     patterns = [
