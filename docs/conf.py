@@ -51,7 +51,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'respacy'
-copyright = "2020, Paolo Arduin"
+copyright = "2020, Erre Quadro srl"
 author = "Paolo Arduin"
 
 # The version info for the project you're documenting, acts as replacement

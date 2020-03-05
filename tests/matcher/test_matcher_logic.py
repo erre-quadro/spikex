@@ -168,3 +168,17 @@ def test_matcher_remove():
     # removing again should throw an error
     with pytest.raises(ValueError):
         matcher.remove("Rule")
+
+
+def test_matcher_returns_best_sort(en_vocab):
+    matcher = Matcher()
+    patterns = [
+        [{"LOWER": "zero"}],
+        [{"LOWER": "zero"}, {"LOWER": "one"}],
+        [{"LOWER": "zero"}, {"LOWER": "one"}, {"LOWER": "two"}],
+    ]
+    matcher.add("TEST", patterns)
+    doc = Doc(en_vocab, words="zero one two three".split())
+    matches = matcher(doc, best_sort=True)
+    texts = [Span(doc, s, e, label=L).text for L, s, e in matches]
+    assert texts == ["zero one two", "zero one", "zero"]

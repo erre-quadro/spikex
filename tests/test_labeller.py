@@ -16,5 +16,6 @@ def test_from_static_constructor(nlp, labellings):
     doc = nlp("This is a test")
     matches = labeller(doc)
     assert len(matches) == 4
+    assert len(doc._.labellings) == 4
     assert doc[0]._.labels[0] == "NO_TEST"
     assert doc[-1]._.labels[0] == "TEST"
