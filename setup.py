@@ -35,7 +35,7 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
     ],
-    description="A set of custom spaCy pipeline components based on regex.",
+    description="🌀A set of custom pipes which enhance and exploit spaCy.",
     install_requires=requirements,
     license="Apache Software License 2.0",
     long_description=readme + "\n\n" + history,
@@ -47,6 +47,6 @@ setup(
     test_suite="tests",
     tests_require=test_requirements,
     url="https://github.com/erre-quadro/respacy",
-    version="0.1.1",
+    version="0.1.2-dev0",
     zip_safe=False,
 )

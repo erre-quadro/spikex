@@ -13,19 +13,19 @@ install: pip install -U tox-travis
 script: tox
 
 # Jobs (with stages)
-jobs:
-  include:
-    - stage: deploy
-      script: pipenv run invoke docs
-      before_script:
-        - pip install pipenv
-        - pipenv install --dev --skip-lock
-      python: 3.6
-      deploy:
-        provider: pages
-        local-dir: docs/_build
-        skip-cleanup: true
-        github-token: $GH_TOKEN
-        keep-history: true
-        on:
-           branch: master
+# jobs:
+#   include:
+#     - stage: deploy
+#       script: pipenv run invoke docs
+#       before_script:
+#         - pip install pipenv
+#         - pipenv install --dev --skip-lock
+#       python: 3.6
+#       deploy:
+#         provider: pages
+#         local-dir: docs/_build
+#         skip-cleanup: true
+#         github-token: $GH_TOKEN
+#         keep-history: true
+#         on:
+#            branch: master

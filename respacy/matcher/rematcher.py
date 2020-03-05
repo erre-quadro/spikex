@@ -13,7 +13,7 @@ REGEX_ONE_TOKEN = r"[^ ]+"
 
 
 class REMatcher(object):
-    def __init__(self, validate: bool = False):
+    def __init__(self, validate: bool = False, *args, **kwargs):
 
         self._specs = {}
         self._patterns = {}
@@ -161,7 +161,7 @@ class REMatcher(object):
         self._patterns.pop(key)
         self._callbacks.pop(key)
 
-    def __call__(self, doc: Doc, sort: bool = False):
+    def __call__(self, doc: Doc, best_sort: bool = False):
         """
         Find all token sequences matching the supplied patterns.
 
@@ -208,8 +208,8 @@ class REMatcher(object):
         for norm_key, start, end in matcher(doc):
             matches.append((norm_key, start, end))
 
-        if sort:
-            matches.sort(key=lambda x: (x[0], x[1], x[2]))
+        if best_sort:
+            matches.sort(key=lambda x: (x[1], -x[2], x[0]))
 
         for i, match in enumerate(matches):
             key = doc.vocab.strings[match[0]]

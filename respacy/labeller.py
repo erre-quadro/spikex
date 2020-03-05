@@ -1,13 +1,15 @@
-from spacy.tokens import Doc, Token
+from spacy.tokens import Doc, Span, Token
 
 from .matcher import REMatcher
 
 
 class Labeller:
     def __init__(self, validate: bool = None):
+        Doc.set_extension("labellings", default=[], force=True)
+        Token.set_extension("labels", default=[], force=True)
 
         self._matcher = REMatcher(validate)
-        Token.set_extension("labels", default=[], force=True)
+        
 
     def add(self, label, patterns, on_match=None):
         """
@@ -26,9 +28,11 @@ class Labeller:
 
     def __call__(self, doc: Doc):
         """
-        Label all tokens matching the supplied patterns
-        by using the token extension `labels`, in which
-        are collected as a set of uniqueness.
+        Collect all token labels whether it matches in patterns.
+        Each token will have them in its `labels` extension.
+        The supplied `Doc` will have a `labellings` extension in
+        which all labelling-spans are collected. 
+
 
         Parameters
         ----------
@@ -37,19 +41,19 @@ class Labeller:
 
         Returns
         -------
-        list
-            A list of `(label, i, start, end)` tuples,
-            describing the matches labelled. A tuple describes a span
-            `doc[start:end]` matched by the *i-th* pattern of the *label*.
+        Doc
+            The doc after being labelled.
         """
-        matches = self._matcher(doc)
+        matches = self._matcher(doc, best_sort=True)
         for key, start, end in matches:
             label = doc.vocab.strings[key]
-            for token in doc[start:end]:
+            span = Span(doc, start, end, label)
+            for token in span:
                 if label in token._.labels:
                     continue
                 token._.labels.append(label)
-        return matches
+            doc._.labellings.append(span)
+        return doc
 
     @staticmethod
     def from_labellings(labellings, on_match=None, validate=None):

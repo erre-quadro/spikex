@@ -10,7 +10,7 @@ def find_acronym(
     *, long_form: str, long_index: int, short_form: str, short_index: int
 ) -> Union[Tuple[int, int], None]:
     """
-    Find an abbreviation matching in multiword only.
+    Find an abbreviation matching an acronym.
     Implements an abbreviation detection algorithm which works by enumerating the characters 
     in the short form of the abbreviation, checking that they can be matched against characters 
     in a candidate text for the long form in order, as well as requiring that each letter of 
@@ -147,13 +147,9 @@ def find_abbreviation(
     long_form_candidate: Span, short_form_candidate: Span
 ) -> Tuple[Span, Optional[Span]]:
     """
-    Implements the abbreviation detection algorithm in "A simple algorithm
-    for identifying abbreviation definitions in biomedical text.", (Schwartz & Hearst, 2003).
-
-    The algorithm works by enumerating the characters in the short form of the abbreviation,
-    checking that they can be matched against characters in a candidate text for the long form
-    in order, as well as requiring that the first letter of the abbreviated form matches the
-    _beginning_ letter of a word.
+    Implements an abbreviation detection algorithm which first tries to resolve any acronym
+    and then, if it fails, applies a detection algorithm based on "A simple algorithm for 
+    identifying abbreviation definitions in biomedical text.", (Schwartz & Hearst, 2003).
 
     Parameters
     ----------
@@ -277,8 +273,9 @@ def short_form_filter(span: Span) -> bool:
 
 class AbbreviationDetector:
     """
-    Detects abbreviations using the algorithm in "A simple algorithm for identifying
-    abbreviation definitions in biomedical text.", (Schwartz & Hearst, 2003).
+    Detects abbreviations which are acronyms or by using the algorithm in 
+    "A simple algorithm for identifying abbreviation definitions in biomedical 
+    text.", (Schwartz & Hearst, 2003).
 
     This class sets the `._.abbreviations` attribute on spaCy Doc.
 
@@ -296,7 +293,9 @@ class AbbreviationDetector:
         self.matcher.add(
             "abbreviations",
             [
+                # Pattern for abbreviations not enclosed in brackets
                 [{"IS_ALPHA": True, "IS_UPPER": True, "LENGTH": {">": 1}},],
+                # Pattern for abbreviations enclosed in brackets
                 [
                     {"TEXT": {"IN": ["(", "["]}},
                     {"IS_ALPHA": True, "LENGTH": {">": 1}},

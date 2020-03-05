@@ -28,7 +28,6 @@ jsonschema = "*"
 regex = "*"
 respacy = {path = ".",editable = true}
 typer = "*"
-plac = "*"
 wasabi = "*"
 spacy = "*"
 
