@@ -16,10 +16,17 @@ def span_idx2i(
     start_i = idx2i(source, start_idx)
     if end_i >= 0:
         return start_i, end_i
-    for token in source[start_i + 1 :]:
+    last_index = start_i
+    for token in source[start_i:]:
+        last_index = token.i
         if token.idx < end_idx:
             continue
         return start_i, token.i
+    if end_i > 0:
+        return start_i, end_i
+    last_token = source[last_index]
+    if end_idx < last_token.idx + len(last_token):
+        return start_i, last_token.i + 1
 
     # for token in doc:
     #     if start_i < 0:

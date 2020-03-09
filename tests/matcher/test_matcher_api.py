@@ -218,6 +218,16 @@ def test_matcher_set_value_operator(en_vocab):
 
 def test_matcher_regex(en_vocab):
     matcher = REMatcher()
+    pattern = [{"REGEX": r"\bUS\d+\b"}]
+    matcher.add("REGEX", [pattern])
+    text = "This is a test for a regex, US12345."
+    doc = Doc(en_vocab, words=text.split())
+    matches = matcher(doc)
+    assert matches == [(14188318820720882904, 7, 8)]
+
+
+def test_matcher_orth_regex(en_vocab):
+    matcher = REMatcher()
     pattern = [{"ORTH": {"REGEX": r"(?:a|an)"}}]
     matcher.add("A_OR_AN", [pattern])
     doc = Doc(en_vocab, words=["an", "a", "hi"])

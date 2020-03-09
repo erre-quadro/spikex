@@ -1,5 +1,6 @@
 import cProfile
 import pstats
+from pathlib import Path
 
 import plac
 import spacy
@@ -13,9 +14,9 @@ from ..matcher import REMatcher
 @plac.annotations()
 def profile(patterns_path):
     sample_doc = doc()
-    # matcher = Matcher(sample_doc.vocab)
     matcher = REMatcher()
     matcher.add("Profile", patterns(patterns_path))
+    # matcher.add("Profile", [[{"ORTH": {"NOT_IN": ["streptococco"]}, "OP": "*"}, {"ORTH": "diagrammatically"}]])
     cProfile.runctx(
         "matches(matcher, sample_doc)", globals(), locals(), "Profile.prof"
     )
@@ -37,5 +38,5 @@ def patterns(patterns_path):
 
 def doc():
     return spacy.load("en_core_web_sm")(
-        open(resources_path.joinpath("sample.txt"), "r").read()
+        open(Path("resources").joinpath("sample.txt"), "r").read()
     )

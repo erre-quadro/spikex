@@ -1,4 +1,4 @@
-from respacy.abbreviation import find_abbreviation
+from respacy.abbreviations import find_abbreviation
 
 
 def test_find_abbreviation_acronyms(nlp):

@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Tuple
 
 import regex as re
+from spacy.attrs import intify_attr
 from spacy.errors import Errors, MatchPatternError
 from spacy.matcher import Matcher
 from spacy.tokens import Doc, Token
@@ -198,12 +199,16 @@ class REMatcher(object):
             )
             candidate = doc[start:end]
             if doclen == len(candidate):
-                matcher.add(
-                    norm_key, [self._patterns[key][i]]
-                )
+                matcher.add(norm_key, [self._patterns[key][i]])
                 continue
             catcher = self._specs[key][i][0]
             matches.extend((norm_key, s, e) for s, e in catcher(candidate))
+            # span_matcher = Matcher(doc.vocab)
+            # span_matcher.add(norm_key, [self._patterns[key][i]])
+            # matches.extend(
+            #     (k, start + s, start + e)
+            #     for k, s, e in span_matcher(candidate)
+            # )
 
         for norm_key, start, end in matcher(doc):
             matches.append((norm_key, start, end))
@@ -281,6 +286,69 @@ def _catcher_from_items(catcheritems):
         raise ValueError(Errors.E011.format(op=op, opts=keys))
 
     def catch_matches(candidate, _catcheritems):
+
+        matchings = {}
+        lastcindex = len(_catcheritems) - 1
+
+        for i, token in enumerate(candidate):
+            for c, (op, cf) in enumerate(_catcheritems):
+
+                cf_res = None
+
+                if c not in matchings:
+                    # cf_res = cf(token)
+                    # if not cf_res:
+                    #     break
+                    matchings[c] = set()
+
+                if cf_res is None:
+                    cf_res = cf(token)
+
+                matches = []
+                end = token.i
+                prev_c = c - 1
+
+                if not cf_res:
+                    if op == "+":
+                        if c == lastcindex:
+                            matches.extend(matchings[c])
+                            matchings[c] = set()
+                        if prev_c >= 0:
+                            matchings[prev_c] = set()
+                    elif op in ["1", "!"]:
+                        if prev_c >= 0:
+                            matchings[prev_c] = set()
+                    elif op in ["*", "?"]:
+                        if c == lastcindex:
+                            if prev_c in matchings and matchings[prev_c]:
+                                matches.extend(matchings[prev_c])
+                            matches.extend(matchings[c])
+                            # matchings[c] = set()
+                        # if prev_c >= 0:
+                        #     matchings[prev_c] = set()
+                else:
+                    if prev_c in matchings and matchings[prev_c]:
+                        matchings[c].update(matchings[prev_c])
+                        prev_op, _ = _catcheritems[prev_c]
+                        if prev_op in ["1", "!", "?"]:
+                            matchings[prev_c] = set()
+                    else:
+                        matchings[c].add(token.i)
+                    if c == lastcindex:
+                        matches.extend(matchings[c])
+                        if op in ["1", "!", "?"]:
+                            matchings[c] = set()
+                    end += 1
+
+                print(candidate, "|", token, c, matchings, matches, end)
+
+                if matches:
+                    yield from ((start, end) for start in matches)
+
+                if i <= c and op in ["1", "!"]:
+                    break
+
+    def _catch_matches(candidate, _catcheritems):
         cs = candidate[0].i
         for i in range(len(candidate)):
             c = 0
@@ -295,15 +363,8 @@ def _catcher_from_items(catcheritems):
                 is_match = False
                 while cc < maxclen and not is_match:
                     op, cf = _catcheritems[cc]
-                    if cf is None:
-                        if op == "!":
-                            break
-                        if not optional:
-                            c = cc + 1
-                            end = lastm = token.i
-                        is_match = True
-                    elif (
-                        op == "1" and cf(token) or op == "!" and not cf(token)
+                    if (
+                        op in ["1", "!"] and cf(token)
                     ):
                         c = cc + 1
                         optional = []
@@ -314,7 +375,7 @@ def _catcher_from_items(catcheritems):
                         end = lastm = token.i
                         optional = [(op, cf)]
                         is_match = True
-                    elif op == "?" or op == "*":
+                    elif op in ["*", "?"]:
                         cc += 1
                         optional.insert(0, (op, cf))
                     else:
@@ -347,21 +408,25 @@ def _catcher_from_items(catcheritems):
             for idx in rng:
                 yield (cs + i, idx + 1)
 
-    return lambda x: catch_matches(x, catcheritems)
+    return lambda x: _catch_matches(x, catcheritems)
 
 
 def _catcherfunc_from_tokenspec(tokenspec):
     if not tokenspec:
-        return
+        return lambda x: True
     funcs = []
     for attr, value in tokenspec.items():
         if attr == "_":
             if not isinstance(value, dict):
                 raise ValueError(Errors.E154.format())
             funcs.append(_evalfunc_from_extensions(value))
+        elif attr == "REGEX":
+            funcs.append(lambda x: True)
         elif attr not in ["REGEX", "OP"]:
             funcs.append(_evalfunc_from_attr(attr, value))
-    return lambda x: all(f(x) for f in funcs)
+    if "OP" in tokenspec and tokenspec["OP"] == "!":
+        return lambda x: sum(int(f(x)) for f in funcs) == 0
+    return lambda x: sum(int(not f(x)) for f in funcs) == 0
 
 
 def _evalfunc_from_attr(attr, value):
@@ -404,14 +469,51 @@ def _evalfunc_from_predicate(pred, attr, args, from_extension=False):
 
 
 def get_token_attr(token: Token, attr: str):
-    if attr == "LENGTH":
+    if attr == "LEMMA":
+        return token.lemma_
+    elif attr == "NORM":
+        if not token.norm_:
+            return token.lex.norm
+        return token.norm_
+    elif attr == "POS":
+        return token.pos_
+    elif attr == "TAG":
+        return token.tag_
+    elif attr == "DEP":
+        return token.dep_
+    elif attr == "HEAD":
+        return token.head_
+    elif attr == "SENT_START":
+        return token.sent_start
+    elif attr == "ENT_IOB":
+        return token.ent_iob_
+    elif attr == "ENT_TYPE":
+        return token.ent_type_
+    elif attr == "ENT_ID":
+        return token.ent_id_
+    elif attr == "ENT_KB_ID":
+        return token.ent_kb_id_
+    elif attr == "LEX_ID":
+        return token.lex_id
+    elif attr == "ORTH":
+        return token.orth_
+    elif attr == "LOWER":
+        return token.lower_
+    elif attr == "SHAPE":
+        return token.shape_
+    elif attr == "PREFIX":
+        return token.prefix_
+    elif attr == "SUFFIX":
+        return token.suffix_
+    elif attr == "LENGTH":
         return len(token)
-    fix_attr = attr.lower() + "_"
-    if not hasattr(token, fix_attr):
-        fix_attr = attr.lower()
-    if not hasattr(token, fix_attr):
-        raise ValueError(Errors.E153.format(vtype=attr))
-    return getattr(token, fix_attr)
+    elif attr == "CLUSTER":
+        return token.cluster
+    elif attr == "LANG":
+        return token.lang_
+    elif token.check_flag(intify_attr(attr)):
+        return True
+    return False
 
 
 def _regex_from_items(items):
@@ -426,12 +528,12 @@ def _regex_from_items(items):
 def _regext_from_tokenspec(tokenspec, is_first=False):
 
     content = None
-    no_escape = False
     case_insensitive = False
 
     if "REGEX" in tokenspec:
-        no_escape = True
         content = tokenspec["REGEX"]
+        if isinstance(content, str):
+            return content
     elif "LOWER" in tokenspec:
         case_insensitive = True
         content = tokenspec["LOWER"]
@@ -443,7 +545,6 @@ def _regext_from_tokenspec(tokenspec, is_first=False):
     op = tokenspec["OP"] if "OP" in tokenspec else None
     return _regex_from_content(
         content,
-        no_escape=no_escape,
         case_insensitive=case_insensitive,
         is_first=is_first,
         op=op,
@@ -457,9 +558,8 @@ def _regexl_from_tokenspec(tokenspec, is_first=False):
 
 
 def _regex_from_content(
-    content, no_escape=False, case_insensitive=False, is_first=False, op=None
+    content, case_insensitive=False, is_first=False, op=None
 ):
-    regex = None
     if not content:
         regex = REGEX_ONE_TOKEN
         if op is not None and op != "!":
@@ -477,10 +577,11 @@ def _regex_from_content(
             wrap_in_op = "!"
         else:
             raise ValueError(Errors.E154.format())
-        regex = _regex_wrap_op(wrap_in_op, _regex_pipe_terms(content[in_op]))
-
-    if not regex:
-        regex = re.escape(content) if not no_escape else content
+        terms = [re.escape(term) for term in content[in_op]]
+        regex = _regex_wrap_op(wrap_in_op, _regex_pipe_terms(terms))
+    
+    else:
+        regex = re.escape(content)
 
     if op is not None:
         return _regex_wrap_op(op, regex)
@@ -521,7 +622,6 @@ def find_re_matches(
             if not spec[1]:
                 yield (key, i, 0, maxdlen)
                 continue
-            print(spec[1])
             for match in spec[1].finditer(doc_text):
                 start, end = span_idx2i(
                     doc, match.start(), match.end(), maxtlen

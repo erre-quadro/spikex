@@ -9,7 +9,6 @@ class Labeller:
         Token.set_extension("labels", default=[], force=True)
 
         self._matcher = REMatcher(validate)
-        
 
     def add(self, label, patterns, on_match=None):
         """

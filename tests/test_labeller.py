@@ -1,7 +1,6 @@
 import pytest
 
 from respacy.labeller import Labeller
-from spacy.tokens import Span
 
 
 @pytest.fixture
@@ -14,7 +13,7 @@ def labellings():
 
 @pytest.fixture
 def labeller(labellings):
-    return Labeller.from_labellings(labellings)    
+    return Labeller.from_labellings(labellings)
 
 
 def test_doc_labellings(labeller, nlp):

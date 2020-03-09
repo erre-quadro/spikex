@@ -29,7 +29,6 @@ regex = "*"
 respacy = {path = ".",editable = true}
 typer = "*"
 wasabi = "*"
-spacy = "*"
 
 [pipenv]
 allow_prereleases = true
