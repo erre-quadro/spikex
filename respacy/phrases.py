@@ -5,19 +5,9 @@ from .matcher import REMatcher
 NP_PATTERNS = [
     [
         {"POS": "DET", "OP": "?"},
-        {
-            "POS": {
-                "IN": ["ADJ", "ADP", "ADV", "NOUN", "PROPN"]
-            },
-            "OP": "*",
-        },
+        {"POS": {"IN": ["ADJ", "ADP", "ADV", "NOUN", "PROPN"]}, "OP": "*",},
         {"POS": {"IN": ["CONJ", "CCONJ"]}, "OP": "?"},
-        {
-            "POS": {
-                "IN": ["ADJ", "ADP", "ADV", "NOUN", "PROPN"]
-            },
-            "OP": "+",
-        },
+        {"POS": {"IN": ["ADJ", "ADP", "ADV", "NOUN", "PROPN"]}, "OP": "+",},
         {"POS": {"IN": ["NOUN", "PRON", "PROPN"]}},
     ]
 ]
