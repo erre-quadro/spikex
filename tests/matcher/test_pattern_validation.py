@@ -2,7 +2,7 @@ import pytest
 from spacy.errors import MatchPatternError
 from spacy.util import get_json_validator, validate_json
 
-from respacy.matcher import REMatcher as Matcher
+from respacy.matcher import Matcher
 from respacy.matcher._schemas import TOKEN_PATTERN_SCHEMA
 
 # (pattern, num errors with validation, num errors identified with minimal
@@ -49,8 +49,8 @@ def validator():
 @pytest.mark.parametrize(
     "pattern", [[{"XX": "y"}, {"LENGTH": "2"}, {"TEXT": {"IN": 5}}]]
 )
-def test_matcher_pattern_validation(pattern):
-    matcher = Matcher(validate=True)
+def test_matcher_pattern_validation(en_vocab, pattern):
+    matcher = Matcher(en_vocab, validate=True)
     with pytest.raises(MatchPatternError):
         matcher.add("TEST", [pattern])
 
@@ -69,8 +69,8 @@ def test_xfail_pattern_validation(validator, pattern, n_errors, _):
 
 
 @pytest.mark.parametrize("pattern,n_errors,n_min_errors", TEST_PATTERNS)
-def test_minimal_pattern_validation(pattern, n_errors, n_min_errors):
-    matcher = Matcher()
+def test_minimal_pattern_validation(en_vocab, pattern, n_errors, n_min_errors):
+    matcher = Matcher(en_vocab)
     if n_min_errors > 0:
         with pytest.raises(ValueError):
             matcher.add("TEST", [pattern])

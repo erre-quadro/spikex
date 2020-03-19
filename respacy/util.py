@@ -1,15 +1,15 @@
 import time
 from math import ceil, floor
-from typing import Union
+from typing import List, Union
 
-from spacy.tokens import Doc, Span
+from spacy.tokens import Doc, Span, Token
 
 
 def span_idx2i(
-    source: Union[Doc, Span], start_idx: int, end_idx: int, maxlen: int = None
+    source: Union[Doc, Span, List[Token]], start_idx: int, end_idx: int, maxlen: int = None
 ):
     start_i = 0 if start_idx == 0 else -1
-    maxlen = maxlen or len(source.text)
+    maxlen = maxlen or (sum(len(t) for t in source) if isinstance(list) else len(source.text))
     end_i = len(source) if end_idx == maxlen else -1
     if start_i >= 0 and end_i >= 0:
         return start_i, end_i
@@ -28,35 +28,9 @@ def span_idx2i(
     if end_idx < last_token.idx + len(last_token):
         return start_i, last_token.i + 1
 
-    # for token in doc:
-    #     if start_i < 0:
-    #         if token.idx < start_idx:
-    #             continue
-    #         if token.idx == start_idx:
-    #             start_i = token.i
-    #         else:
-    #             start_i = token.i - 1
-    #     elif end_i < 0:
-    #         if token.idx < end_idx:
-    #             continue
-    #         return start_i, token.i
-    #     else:
-    #         return start_i, end_i
-    # if start_i > 0:
-    #     return start_i, len(doc)
 
-
-def idx2i(source: Union[Doc, Span], idx: int):
-    # for token in source:
-    #     if token.idx < idx:
-    #         continue
-    #     elif token.idx == idx:
-    #         return token.i
-    #     else:
-    #         return token.i - 1
-
+def idx2i(source: Union[Doc, Span, List[Token]], idx: int):
     max_i = len(source)
-
     def _idx2i(_idx, start, end):
         if start == end:
             return start
@@ -90,7 +64,6 @@ def idx2i(source: Union[Doc, Span], idx: int):
             return _idx2i(_idx, start, token.i)
         else:
             return _idx2i(_idx, token.i, end)
-
     return _idx2i(idx, 0, max_i)
 
 

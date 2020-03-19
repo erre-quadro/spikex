@@ -1,14 +1,14 @@
 from spacy.tokens import Doc, Span, Token
 
-from .matcher import REMatcher
+from .matcher import Matcher
 
 
 class Labeller:
-    def __init__(self, validate: bool = None):
+    def __init__(self, vocab, validate: bool = None):
         Doc.set_extension("labellings", default=[], force=True)
         Token.set_extension("labels", default=[], force=True)
 
-        self._matcher = REMatcher(validate)
+        self._matcher = Matcher(vocab, validate)
 
     def add(self, label, patterns, on_match=None):
         """
@@ -55,7 +55,7 @@ class Labeller:
         return doc
 
     @staticmethod
-    def from_labellings(labellings, on_match=None, validate=None):
+    def from_labellings(labellings, vocab, *, on_match=None, validate=None):
         """
         Create a `Labeller` instance containing labelling-rules.
         A labelling-rule consists of:
@@ -76,7 +76,7 @@ class Labeller:
         Labeller
             Instance of a `Labeller`.
         """
-        labeller = Labeller(validate)
+        labeller = Labeller(vocab, validate)
         for labelling in labellings:
             label = labelling["label"]
             pattern = labelling["pattern"]

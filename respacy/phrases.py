@@ -1,6 +1,6 @@
 from spacy.tokens import Doc, Span
 
-from .matcher import REMatcher
+from .matcher import Matcher
 
 NP_PATTERNS = [
     [
@@ -22,9 +22,9 @@ VP_PATTERNS = [
 
 
 class PhraseDetector:
-    def __init__(self):
+    def __init__(self, vocab):
         Doc.set_extension("phrases", default=[], force=True)
-        self._matcher = REMatcher()
+        self._matcher = Matcher(vocab)
         self._matcher.add("NP", NP_PATTERNS)
         self._matcher.add("VP", VP_PATTERNS)
 

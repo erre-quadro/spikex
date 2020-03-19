@@ -12,8 +12,8 @@ def labellings():
 
 
 @pytest.fixture
-def labeller(labellings):
-    return Labeller.from_labellings(labellings)
+def labeller(labellings, nlp):
+    return Labeller.from_labellings(labellings, nlp.vocab)
 
 
 def test_doc_labellings(labeller, nlp):

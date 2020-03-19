@@ -1,10 +1,9 @@
+from functools import lru_cache
 from typing import Any, Dict, List, Tuple
 
 import regex as re
-from spacy.attrs import intify_attr
+from spacy.attrs import DEP, LEMMA, POS, TAG, intify_attr
 from spacy.errors import Errors, MatchPatternError
-from spacy.matcher import Matcher
-from spacy.strings import get_string_id
 from spacy.tokens.doc import Doc
 from spacy.tokens.token import Token
 from spacy.util import get_json_validator, validate_json
@@ -12,16 +11,17 @@ from spacy.util import get_json_validator, validate_json
 from ..util import span_idx2i
 from ._schemas import TOKEN_PATTERN_SCHEMA
 
-REGEX_ONE_TOKEN = r"[^ ]+"
+__all__ = ["Matcher"]
 
 
-class REMatcher(object):
-    def __init__(self, validate: bool = False, *args, **kwargs):
+class Matcher(object):
+    def __init__(self, vocab, validate=False):
 
         self._specs = {}
         self._patterns = {}
         self._callbacks = {}
         self._seen_attrs = set()
+        self.vocab = vocab
 
         self.validator = (
             get_json_validator(TOKEN_PATTERN_SCHEMA) if validate else None
@@ -54,6 +54,7 @@ class REMatcher(object):
         bool
             Whether the matcher contains rules for this key.
         """
+        key = self._normalize_key(key)
         return key in self._patterns
 
     def __getitem__(self, key: str):
@@ -71,6 +72,7 @@ class REMatcher(object):
         tuple 
             The rule, as an (on_match, patterns) tuple.
         """
+        key = self._normalize_key(key)
         return (self._callbacks[key], self._patterns[key])
 
     def get(self, key: str, default=None):
@@ -87,6 +89,7 @@ class REMatcher(object):
         tuple: 
             The rule, as an (on_match, patterns) tuple.
         """
+        key = self._normalize_key(key)
         return self[key] if key in self else default
 
     def add(self, key: str, patterns, on_match=None):
@@ -135,14 +138,16 @@ class REMatcher(object):
         if any(err for err in errors.values()):
             raise MatchPatternError(key, errors)
 
+        key = self._normalize_key(key)
+
         self._specs.setdefault(key, [])
         for pattern in patterns:
-
             spec = _preprocess_pattern(pattern)
             self._specs[key].append(spec)
-
-            attrs = set(attr for token in pattern for attr in token.keys())
-            self._seen_attrs.update(attrs)
+            for token in pattern:
+                for attr in token:
+                    iattr = intify_attr(attr)
+                    self._seen_attrs.add(iattr)
 
         self._patterns.setdefault(key, [])
         self._callbacks[key] = on_match
@@ -158,6 +163,7 @@ class REMatcher(object):
         key: str 
             The ID of the match rule.
         """
+        key = self._normalize_key(key)
         if key not in self._patterns:
             raise ValueError(Errors.E175.format(key=key))
         self._specs.pop(key)
@@ -181,64 +187,172 @@ class REMatcher(object):
             `doc[start:end]`.
         """
         if (
-            len(set(("LEMMA", "POS", "TAG")) & self._seen_attrs) > 0
+            len(set((LEMMA, POS, TAG)) & self._seen_attrs) > 0
             and not doc.is_tagged
         ):
             raise ValueError(Errors.E155.format())
 
-        if "DEP" in self._seen_attrs and not doc.is_parsed:
+        if DEP in self._seen_attrs and not doc.is_parsed:
             raise ValueError(Errors.E156.format())
 
         cache = {}
-        matches = []
-        doclen = len(doc)
-        matcher = Matcher(doc.vocab)
+        coordicatch = {}
+        tokens = [token for token in doc]
 
-        for key, i, start, end in find_re_matches(doc, self._specs):
-            norm_key = (
-                doc.vocab.strings.add(key)
-                if key not in doc.vocab.strings
-                else doc.vocab.strings[key]
-            )
-            candidate = doc[start:end]
+        for key, i, start, end in _find_re_matches(tokens, self._specs):
+            catcher = self._specs[key][i][0]
+            starts = coordicatch.setdefault(start, {})
+            ends = starts.setdefault(end, {})
+            keys = ends.setdefault(key, [])
+            keys.append((catcher, {}))
+            # candidate = tokens[start:end]
             # if doclen == len(candidate):
             #     matcher.add(norm_key, [self._patterns[key][i]])
             #     continue
-            catcher = self._specs[key][i][0]
-            matches.extend(
-                (norm_key, start + s, start + e) for s, e in catcher(candidate, cache)
-            )
-            # if any("REGEX" in token for token in self._patterns[key][i]):
-            #     matches.append((key, start, end))
-            #     continue
-            # span_matcher = Matcher(doc.vocab)
-            # span_matcher.add(norm_key, [self._patterns[key][i]])
-            # matches.extend(
-            #     (k, start + s, start + e)
-            #     for k, s, e in span_matcher(candidate.as_doc())
-            # )
+            # catcher = self._specs[key][i][0]
+            # for s, e in catcher(candidate):
+            #     matches.append((norm_key, start + s, start + e))
 
         # for norm_key, start, end in matcher(doc):
         #     matches.append((norm_key, start, end))
+
+        matches = [match for match in _find_matches(tokens, coordicatch)]
 
         if best_sort:
             matches.sort(key=lambda x: (x[1], -x[2], x[0]))
 
         for i, match in enumerate(matches):
-            key = doc.vocab.strings[match[0]]
-            on_match = self._callbacks.get(key, None)
+            on_match = self._callbacks.get(match[0], None)
             if on_match is not None:
                 on_match(self, doc, i, matches)
 
         return matches
 
+    def _normalize_key(self, key):
+        if isinstance(key, int):
+            return key
+        return (
+            self.vocab.strings.add(key)
+            if key not in self.vocab.strings
+            else self.vocab.strings[key]
+        )
+
+
+def _find_re_matches(tokens, specs):
+    text = "".join([t.text_with_ws for t in tokens])
+    maxdlen = len(tokens)
+    maxtlen = len(text)
+    for key, values in specs.items():
+        for i, spec in enumerate(values):
+            if not spec[1]:
+                yield (key, i, 0, maxdlen)
+                continue
+            for match in spec[1].finditer(text, concurrent=True):
+                start, end = span_idx2i(
+                    tokens, match.start(), match.end(), maxtlen
+                )
+                if start == end:
+                    continue
+                if not spec[2] or spec[2].search(
+                    " ".join([t.lemma_ for t in tokens[start:end]])
+                ):
+                    yield (key, i, start, end)
+
+
+def _find_matches(tokens, coordicatch):
+    cache = {}
+    active_catchers = {}
+    for i, token in enumerate(tokens):
+        if i in coordicatch:
+            active_catchers.update(coordicatch[i])
+        if i in active_catchers:
+            del active_catchers[i]
+        token_cache = cache.setdefault(i, {})
+        for _, keys in active_catchers.items():
+            for key, catchers in keys.items():
+                for catcher, catchings in catchers:
+                    yield from (
+                        (key, start, end)
+                        for start, end in _catch_in_token(
+                            token, i, catcher, catchings, token_cache
+                        )
+                    )
+
+
+ONE = "1"
+ONE_PLUS = "+"
+ZERO = "!"
+ZERO_ONE = "?"
+ZERO_PLUS = "*"
+
+
+def _catch_in_token(token, i, catcher, catchings, cache):
+    c = 0
+    new_catchings = {}
+    items = catcher[0]
+    head_end = catcher[1]
+    tail_start = catcher[2]
+    maxclen = len(items) - 1
+    for c in range(len(items)):
+        # if head ended
+        # check already open catchings only
+        if c > head_end and c not in catchings:
+            continue
+        op, cf = items[c]
+        catch = {}
+        if c in catchings:
+            catch = catchings[c]
+            del catchings[c]
+        if not cf(token, cache):
+            if catch and op not in (ONE, ZERO):
+                next_c = c + 1
+                # nothing else to check
+                if next_c > maxclen:
+                    continue
+                # if current catch successed at least once
+                # next catch can be checked on same token
+                if 1 in catch and catch[1]:
+                    catchings.setdefault(next_c, {0: {}, 1: {}})
+                    catchings[next_c][0].update(catch[1])
+                # for `?` and `*`, next catch on same token can
+                # be checked even without any previous success
+                if op in (ZERO_ONE, ZERO_PLUS) and 0 in catch and catch[0]:
+                    catchings.setdefault(next_c, {0: {}, 1: {}})
+                    catchings[next_c][0].update(catch[0])
+        else:
+            if not catch:
+                catch = {0: {}, 1: {}}
+            if not catch[0] and not catch[1] or c <= head_end:
+                catch[1].setdefault(i)
+            catch[1].update(catch[0])
+            # for `*` and `+`, keep checking same
+            # catch saving previous good starts
+            if op in (ONE_PLUS, ZERO_PLUS):
+                catchings.setdefault(c, {0: {}, 1: {}})
+                catchings[c][1] = catch[1]
+            next_c = c + 1
+            # if in tail or at the end, it is good to match
+            if next_c >= tail_start or next_c > maxclen:
+                yield from ((s, i + 1) for s in catch[1])
+                if next_c > maxclen:
+                    continue
+            # next catch can be checked on next token
+            new_catchings.setdefault(next_c, {0: {}, 1: {}})
+            new_catchings[next_c][0].update(catch[1])
+            # for `?` and `*`, next catch
+            # can be checked on same token
+            if op in (ZERO_ONE, ZERO_PLUS):
+                catchings.setdefault(next_c, {0: {}, 1: {}})
+                catchings[next_c][0].update(catch[0])
+
+    catchings.update(new_catchings)
+
 
 def _preprocess_pattern(pattern):
 
-    regextitems = []
-    regexlitems = []
+    retextitems = []
+    relemmaitems = []
     catcheritems = []
-    specmax = len(pattern)
 
     for i, tokenspec in enumerate(pattern):
 
@@ -249,10 +363,12 @@ def _preprocess_pattern(pattern):
             if attr.islower():
                 tokenspec[attr.upper()] = value
                 del tokenspec[attr]
-            # normalize text
-            if attr == "TEXT":
-                tokenspec["ORTH"] = value
-                del tokenspec["TEXT"]
+            # fix specs
+            for fix in [("TEXT", "ORTH"), ("IS_SENT_START", "SENT_START")]:
+                if attr != fix[0]:
+                    continue
+                tokenspec[fix[1]] = value
+                del tokenspec[fix[0]]
             if attr not in TOKEN_PATTERN_SCHEMA["items"]["properties"]:
                 raise ValueError(Errors.E152.format(attr=attr))
             if not (
@@ -265,18 +381,18 @@ def _preprocess_pattern(pattern):
                     Errors.E153.format(vtype=type(value).__name__)
                 )
 
-        op = tokenspec["OP"] if "OP" in tokenspec else "1"
-        cf = _catcherfunc_from_tokenspec(tokenspec) or None
+        op = tokenspec["OP"] if "OP" in tokenspec else ONE
+        cf = _catcherfunc_from_tokenspec(tokenspec)
         catcheritems.append((op, cf))
 
-        tregex = _regext_from_tokenspec(tokenspec, i == 0)
-        regextitems.append(tregex)
+        tregex = _regext_from_tokenspec(tokenspec)
+        retextitems.append(tregex)
 
-        lregex = _regexl_from_tokenspec(tokenspec, i == 0)
-        regexlitems.append(lregex)
+        lregex = _regexl_from_tokenspec(tokenspec)
+        relemmaitems.append(lregex)
 
-    tregex = _regex_from_items(regextitems)
-    lregex = _regex_from_items(regexlitems)
+    tregex = _regex_from_items(retextitems)
+    lregex = _regex_from_items(relemmaitems)
 
     return (
         _catcher_from_items(catcheritems),
@@ -285,134 +401,24 @@ def _preprocess_pattern(pattern):
     )
 
 
-def _catcher_from_items(catcheritems):
-    good_ops = ["1", "!", "?", "*", "+"]
-    for op, _ in catcheritems:
-        if op is None or op in good_ops:
+def _catcher_from_items(items):
+    good_qs = (ONE, ONE_PLUS, ZERO, ZERO_ONE, ZERO_PLUS)
+    for q, _ in items:
+        if q is None or q in good_qs:
             continue
-        keys = ", ".join(good_ops)
-        raise ValueError(Errors.E011.format(op=op, opts=keys))
-
-    def catch_matches(candidate, cache, catcheritems):
-        catchings = {}
-        maxclen = len(catcheritems) - 1
-        headlen = next(
-            i for i, e in enumerate(catcheritems) if e[0] in ["1", "+"]
-        )
-        taillen = next(
-            i
-            for i, e in enumerate(reversed(catcheritems))
-            if e[0] in ["1", "+"]
-        )
-        tailclen = maxclen - taillen
-        for i, token in enumerate(candidate):
-            c = 0
-            new_catchings = {}
-            while c <= maxclen:
-                if c > headlen and c not in catchings:
-                    c += 1
-                    continue
-                op, cf = catcheritems[c]
-                if not cf(token, cache):
-
-                    if op in ["1", "!", "+"]:
-                        if c in catchings:
-                            if catchings[c][1]:
-                                next_c = c + 1
-                                if next_c > tailclen:
-                                    if c in catchings and catchings[c][1]:
-                                        yield from (
-                                            (s, i + 1) for s in catchings[c][1]
-                                        )
-                                        del catchings[c]
-                                    if next_c > maxclen:
-                                        c += 1
-                                        continue
-                                if next_c not in new_catchings:
-                                    new_catchings[next_c] = {0: {}, 1: {}}
-                                new_catchings[next_c][0].update(
-                                    catchings[c][1]
-                                )
-
-                            del catchings[c]
-
-                    elif op in ["?", "*"]:
-                        next_c = c + 1
-                        if next_c > tailclen:
-                            if c in catchings and catchings[c][1]:
-                                yield from ((s, i) for s in catchings[c][1])
-                                del catchings[c]
-                            if next_c > maxclen:
-                                c += 1
-                                continue
-                        if next_c not in new_catchings and next_c <= maxclen:
-                            new_catchings[next_c] = {0: {}, 1: {}}
-                        if c in new_catchings and new_catchings[c][1]:
-                            new_catchings[next_c][0].update(catchings[c][1])
-                            del catchings[c]
-                        else:
-                            new_catchings[next_c][0].setdefault(i)
-
-                else:
-
-                    if op in ["?", "1", "!"]:
-                        next_c = c + 1
-                        if next_c > tailclen:
-                            if c <= headlen:
-                                if c not in catchings:
-                                    catchings[c] = {0: {}}
-                                catchings[c][0].setdefault(i)
-                            if c in catchings and catchings[c][0]:
-                                yield from (
-                                    (s, i + 1) for s in catchings[c][0]
-                                )
-                                del catchings[c]
-                            if next_c > maxclen:
-                                c += 1
-                                continue
-                        if next_c not in new_catchings and next_c <= maxclen:
-                            new_catchings[next_c] = {0: {}, 1: {}}
-                        if c in catchings and catchings[c][0]:
-                            new_catchings[next_c][0].update(catchings[c][0])
-                            del catchings[c]
-                        else:
-                            new_catchings[next_c][0].setdefault(i)
-
-                    elif op in ["*", "+"]:
-                        next_c = c + 1
-                        if next_c > tailclen:
-                            if c <= headlen:
-                                if c not in catchings:
-                                    catchings[c] = {1: {}}
-                                catchings[c][1].setdefault(i)
-                            if c in catchings:
-                                yield from (
-                                    (s, i + 1)
-                                    for starts in catchings[c].values()
-                                    for s in starts
-                                )
-                            if next_c > maxclen:
-                                c += 1
-                                continue
-                        for el in [catchings, new_catchings]:
-                            if c not in el:
-                                el[c] = {0: {}, 1: {}}
-                            if next_c not in el and next_c <= maxclen:
-                                el[next_c] = {0: {}, 1: {}}
-                            if c in el and catchings[c][1]:
-                                el[next_c][0].update(catchings[c][1])
-                            if c <= headlen:
-                                el[c][1].setdefault(i)
-                            el[c][1] = {**el[c][0], **el[c][1]}
-
-                c += 1
-            catchings = {**new_catchings, **catchings}
-    return lambda x, cache: catch_matches(x, cache, catcheritems)
+        keys = ", ".join(good_qs)
+        raise ValueError(Errors.E011.format(op=q, opts=keys))
+    qsep = (ONE, ONE_PLUS, ZERO)
+    head = (i for i, e in enumerate(items) if e[0] in qsep)
+    head_end = next(head)
+    tail = (i for i, e in enumerate(reversed(items)) if e[0] in qsep)
+    tail_start = len(items) - next(tail)
+    return (items, head_end, tail_start)
 
 
 def _catcherfunc_from_tokenspec(tokenspec):
     if not tokenspec:
-        return lambda x: True
+        return lambda x, _: True
     funcs = []
     for attr, value in tokenspec.items():
         if attr == "_":
@@ -421,21 +427,27 @@ def _catcherfunc_from_tokenspec(tokenspec):
             funcs.append(_evalfunc_from_extensions(value))
         elif attr == "REGEX":
             funcs.append(lambda x: True)
-        elif attr not in ["REGEX", "OP"]:
+        elif attr != "OP":
             funcs.append(_evalfunc_from_attr(attr, value))
-    def evalfunc(x, cache, bcmp):
+
+    def evalfunc(x, bcmp, cache):
         for f in funcs:
-            if f(x, cache) != bcmp:
+            if f in cache:
+                return cache[f]
+            res = f(x) == bcmp
+            cache.setdefault(f, res)
+            if not res:
                 return False
         return True
+
     bcmp = "OP" not in tokenspec or tokenspec["OP"] != "!"
-    return lambda x, cache: evalfunc(x, cache, bcmp)
+    return lambda x, cache: evalfunc(x, bcmp, cache)
 
 
 def _evalfunc_from_attr(attr, value):
     if isinstance(value, dict):
         return _evalfunc_from_predicates(attr, value)
-    return lambda x: value == get_token_attr(x, attr)
+    return lambda x: value == _get_token_attr(x, attr)
 
 
 def _evalfunc_from_extensions(extensions):
@@ -448,29 +460,22 @@ def _evalfunc_from_extensions(extensions):
 
 
 def _evalfunc_from_predicates(attr, predicates, in_ext=False):
-    def evalfunc(x, cache, preds):
-        index = x.i
-        if index not in cache:
-            cache[index] = {}
-        cachei = cache[index]
+    def evalfunc(x, preds):
         for pred, value in preds.items():
-            key = "".join([attr, pred, *value])
-            if key in cachei and not cachei[key]:
-                return False
-            res = _evalfunc_from_predicate(pred, value, attr, in_ext)(x)
-            cachei.setdefault(attr, res)
-            if not res:
+            func = _evalfunc_from_predicate(pred, value, attr, in_ext)
+            if not func(x):
                 return False
         return True
-    new_predicates = {**predicates}
+
+    preds = {**predicates}
     for pred, value in predicates.items():
         if not isinstance(value, list):
             continue
-        new_predicates[pred] = {*value}
-    return lambda x, cache: evalfunc(x, cache, new_predicates)
+        preds[pred] = frozenset(value)
+    return lambda x: evalfunc(x, preds)
 
 
-_PREDICATES_TABLE = {
+_PFUNC_LOOKUP = {
     "REGEX": lambda x, y: bool(re.match(y, x)),
     "IN": lambda x, y: x in y,
     "NOT_IN": lambda x, y: x not in y,
@@ -484,12 +489,13 @@ _PREDICATES_TABLE = {
 
 
 def _evalfunc_from_predicate(pred, value, attr, in_ext=False):
-    return lambda x: _PREDICATES_TABLE[pred](
-        x._.get(attr) if in_ext else get_token_attr(x, attr), value,
+    return lambda x: _PFUNC_LOOKUP[pred](
+        x._.get(attr) if in_ext else _get_token_attr(x, attr), value,
     )
 
 
-def get_token_attr(token: Token, attr: str):
+@lru_cache(None)
+def _get_token_attr(token: Token, attr: str):
     if attr == "LEMMA":
         return token.lemma_
     elif attr == "NORM":
@@ -537,16 +543,19 @@ def get_token_attr(token: Token, attr: str):
     return False
 
 
+_REGEX_ONE_TOKEN = r"[^ ]+"
+
+
 def _regex_from_items(items):
     return (
         # if only about attributes, no regex
         None  # r"[\s\S]+"
-        if not items or all(REGEX_ONE_TOKEN in r for r in items)
-        else r"".join([r for r in items if r])
+        if not items or all(_REGEX_ONE_TOKEN in r for r in items)
+        else _regex_wrap_bounds(r"".join([r for r in items if r]), left=True)
     )
 
 
-def _regext_from_tokenspec(tokenspec, is_first=False):
+def _regext_from_tokenspec(tokenspec):
 
     content = None
     case_insensitive = False
@@ -565,24 +574,22 @@ def _regext_from_tokenspec(tokenspec, is_first=False):
 
     op = tokenspec["OP"] if "OP" in tokenspec else None
     return _regex_from_content(
-        content, case_insensitive=case_insensitive, is_first=is_first, op=op,
+        content, case_insensitive=case_insensitive, op=op,
     )
 
 
-def _regexl_from_tokenspec(tokenspec, is_first=False):
+def _regexl_from_tokenspec(tokenspec):
     content = tokenspec["LEMMA"] if "LEMMA" in tokenspec else None
     op = tokenspec["OP"] if "OP" in tokenspec else None
-    return _regex_from_content(content, is_first=is_first, op=op)
+    return _regex_from_content(content, op=op)
 
 
-def _regex_from_content(
-    content, case_insensitive=False, is_first=False, op=None
-):
+def _regex_from_content(content, case_insensitive=False, op=None):
     if not content:
-        regex = REGEX_ONE_TOKEN
+        regex = _REGEX_ONE_TOKEN
         if op is not None and op != "!":
             return _regex_wrap_op(op, regex)
-        return _regex_wrap_bounds(regex, is_first)
+        return _regex_wrap_bounds(regex, right=True)
 
     if isinstance(content, dict):
         if "REGEX" in content:
@@ -604,49 +611,34 @@ def _regex_from_content(
     if op is not None:
         return _regex_wrap_op(op, regex)
 
-    return _regex_wrap_bounds(regex, is_first)
+    return _regex_wrap_bounds(regex, right=True)
 
 
 def _regex_pipe_terms(terms):
     return r"".join([r"(?:", r"|".join(terms), r")"])
 
 
-def _regex_wrap_bounds(text, is_first=False):
-    return (r"(?:\W+|\b|^)" if is_first else r"") + text + r"(?:\W+|\b|$)"
+def _regex_wrap_bounds(text, left=None, right=None):
+    return "".join(
+        [
+            r"(?:\s*|^)" if left else "",
+            text,
+            r"(?:\s*|$)" if right else "",
+        ]
+    )
+
+
+_WRAP_OP_LOOKUP = {
+        "*": "(?:{}(?:[^a-zA-Z0-9]+|$)*)*",
+        "+": "(?:{}(?:[^a-zA-Z0-9]+|$)*)+",
+        "?": "(?:{}(?:[^a-zA-Z0-9]+|$)*)?",
+        "!": "(?!{}(?:[^a-zA-Z0-9]+|$)*)[^ ]+",
+        "1": "(?:{}(?:[^a-zA-Z0-9]+|$)*)",
+    }
 
 
 def _regex_wrap_op(op, text):
-    lookup = {
-        "*": f"(?:{text}(?:\\W+|\\b|$))*",
-        "+": f"(?:{text}(?:\\W+|\\b|$))+",
-        "?": f"(?:{text}(?:\\W+|\\b|$))?",
-        "!": f"(?!{text}(?:\\W+|\\b|$))[^ ]+",
-        "1": f"(?:{text}(?:\\W+|\\b|$))",
-    }
-    if op not in lookup:
-        keys = ", ".join(lookup.keys())
+    if op not in _WRAP_OP_LOOKUP:
+        keys = ", ".join(_WRAP_OP_LOOKUP.keys())
         raise ValueError(Errors.E011.format(op=op, opts=keys))
-    return lookup[op]
-
-
-def find_re_matches(
-    doc: Doc, specs: Dict[str, List[Tuple[Dict[str, Any]]]]
-) -> List[Tuple[str, int, int, int]]:
-    doc_text = doc.text
-    maxdlen = len(doc)
-    maxtlen = len(doc_text)
-    for key, values in specs.items():
-        for i, spec in enumerate(values):
-            if not spec[1]:
-                yield (key, i, 0, maxdlen)
-                continue
-            for match in spec[1].finditer(doc_text):
-                start, end = span_idx2i(
-                    doc, match.start(), match.end(), maxtlen
-                )
-                if start == end:
-                    continue
-                if not spec[2] or spec[2].search(
-                    " ".join([t.lemma_ for t in doc[start:end]])
-                ):
-                    yield (key, i, start, end)
+    return _WRAP_OP_LOOKUP[op].format(text)
