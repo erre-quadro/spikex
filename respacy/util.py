@@ -27,6 +27,7 @@ def span_idx2i(
     last_token = source[last_index]
     if end_idx < last_token.idx + len(last_token):
         return start_i, last_token.i + 1
+    return start_i, start_i + 1
 
 
 def idx2i(source: Union[Doc, Span, List[Token]], idx: int):

@@ -476,7 +476,7 @@ def _evalfunc_from_predicates(attr, predicates, in_ext=False):
 
 
 _PFUNC_LOOKUP = {
-    "REGEX": lambda x, y: bool(re.match(y, x)),
+    "REGEX": lambda x, y: bool(re.search(y, x)),
     "IN": lambda x, y: x in y,
     "NOT_IN": lambda x, y: x not in y,
     "==": lambda x, y: x == y,

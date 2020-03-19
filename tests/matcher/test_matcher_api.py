@@ -238,6 +238,18 @@ def test_matcher_orth_regex(en_vocab):
     assert len(matches) == 0
 
 
+def test_matcher_partial_token_regex(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [{"LOWER": {"REGEX": r"ing\b"}}]
+    matcher.add("ING_FORM", [pattern])
+    doc = Doc(en_vocab, words=["baking", "with", "ingredients"])
+    matches = matcher(doc)
+    assert len(matches) == 1
+    doc = Doc(en_vocab, words=["ingredients", "baked"])
+    matches = matcher(doc)
+    assert len(matches) == 0
+
+
 def test_matcher_regex_shape(en_vocab):
     matcher = Matcher(en_vocab)
     pattern = [{"SHAPE": {"REGEX": r"^[^x]+$"}}]
