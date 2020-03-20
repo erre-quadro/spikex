@@ -4,7 +4,7 @@ from pathlib import Path
 
 import plac
 import spacy
-from spacy.matcher import _Matcher
+from spacy.matcher import Matcher as _Matcher
 from srsly import read_jsonl
 from tqdm import tqdm
 from wasabi import msg
@@ -19,7 +19,6 @@ def profile(patterns_path, matcher_type: str = None):
         Matcher(sample_doc.vocab) if matcher_type == "respacy" else _Matcher(sample_doc.vocab)
     )
     matcher.add("Profile", patterns(patterns_path))
-    # matcher.add("Profile", [[{"ORTH": {"NOT_IN": ["streptococco"]}, "OP": "*"}, {"ORTH": "diagrammatically"}]])
     cProfile.runctx(
         "matches(matcher, sample_doc)", globals(), locals(), "Profile.prof"
     )

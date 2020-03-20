@@ -238,16 +238,21 @@ def test_matcher_orth_regex(en_vocab):
     assert len(matches) == 0
 
 
-def test_matcher_partial_token_regex(en_vocab):
-    matcher = Matcher(en_vocab)
+@pytest.mark.parametrize(
+    "text, count", 
+    [
+        ("baking with ingredients", 1),
+        ("ingredients for baking", 1),
+        ("eating after baking", 2),
+        ("my baking hobby", 1),
+        ("ingredients not backed", 0),
+    ]
+)
+def test_matcher_partial_token_regex(nlp, text, count):
+    matcher = Matcher(nlp.vocab)
     pattern = [{"LOWER": {"REGEX": r"ing\b"}}]
     matcher.add("ING_FORM", [pattern])
-    doc = Doc(en_vocab, words=["baking", "with", "ingredients"])
-    matches = matcher(doc)
-    assert len(matches) == 1
-    doc = Doc(en_vocab, words=["ingredients", "baked"])
-    matches = matcher(doc)
-    assert len(matches) == 0
+    assert len(matcher(nlp(text))) == count
 
 
 def test_matcher_regex_shape(en_vocab):

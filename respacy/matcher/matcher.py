@@ -4,12 +4,16 @@ from typing import Any, Dict, List, Tuple
 import regex as re
 from spacy.attrs import DEP, LEMMA, POS, TAG, intify_attr
 from spacy.errors import Errors, MatchPatternError
+from spacy.strings import get_string_id
 from spacy.tokens.doc import Doc
 from spacy.tokens.token import Token
 from spacy.util import get_json_validator, validate_json
+from spacy.matcher import Matcher as _Matcher
 
 from ..util import span_idx2i
 from ._schemas import TOKEN_PATTERN_SCHEMA
+from srsly import json_dumps
+
 
 __all__ = ["Matcher"]
 
@@ -197,26 +201,35 @@ class Matcher(object):
 
         cache = {}
         coordicatch = {}
+        matches = []
+        matcher = _Matcher(self.vocab)
         tokens = [token for token in doc]
+        doclen = len(tokens)
 
         for key, i, start, end in _find_re_matches(tokens, self._specs):
+            # starts = coordicatch.setdefault(start, {})
+            # ends = starts.setdefault(end, [])
+            # ends.append((key, catcher, {}))
+            
+            # keys = ends.setdefault(key, [])
+            # keys.append((catcher, {}))
+            
+            candidate = tokens[start:end]
+            if doclen == len(candidate):
+                matcher.add(key, [self._patterns[key][i]])
+                continue
             catcher = self._specs[key][i][0]
-            starts = coordicatch.setdefault(start, {})
-            ends = starts.setdefault(end, {})
-            keys = ends.setdefault(key, [])
-            keys.append((catcher, {}))
-            # candidate = tokens[start:end]
-            # if doclen == len(candidate):
-            #     matcher.add(norm_key, [self._patterns[key][i]])
-            #     continue
+            for s, e in _find_matches(tokens[start: end], catcher, cache):
+                matches.append((key, start + s, start + e))
+
             # catcher = self._specs[key][i][0]
             # for s, e in catcher(candidate):
             #     matches.append((norm_key, start + s, start + e))
 
-        # for norm_key, start, end in matcher(doc):
-        #     matches.append((norm_key, start, end))
+        for key, start, end in matcher(doc):
+            matches.append((key, start, end))
 
-        matches = [match for match in _find_matches(tokens, coordicatch)]
+        # matches = [match for match in _find_matches(tokens, coordicatch)]
 
         if best_sort:
             matches.sort(key=lambda x: (x[1], -x[2], x[0]))
@@ -253,6 +266,22 @@ def _find_re_matches(tokens, specs):
                 )
                 if start == end:
                     continue
+                # if not spec[2]:
+                #     yield (key, i, start, end)
+                # candidate = tokens[start:end]
+                # lemmas = " ".join([t.lemma_ for t in candidate])
+                # maxllen = len(lemmas)
+                # for match in spec[2].finditer(lemmas):
+                #     gap = lemmas[:match.start()].count(" ")
+                #     s = gap + 1
+                #     e = gap + lemmas[match.start(): match.end()].count(" ")
+                #     # s, e = span_idx2i(
+                #     #     candidate, match.start(), match.end(), maxllen
+                #     # )
+                #     print(spec[2], lemmas[match.start(): match.end()], candidate[s: e])
+                #     if s == e:
+                #         continue
+                #     yield (key, i, start + s, start + e)
                 if not spec[2] or spec[2].search(
                     " ".join([t.lemma_ for t in tokens[start:end]])
                 ):
@@ -267,16 +296,21 @@ def _find_matches(tokens, coordicatch):
             active_catchers.update(coordicatch[i])
         if i in active_catchers:
             del active_catchers[i]
-        token_cache = cache.setdefault(i, {})
-        for _, keys in active_catchers.items():
-            for key, catchers in keys.items():
-                for catcher, catchings in catchers:
-                    yield from (
-                        (key, start, end)
-                        for start, end in _catch_in_token(
-                            token, i, catcher, catchings, token_cache
-                        )
+        if not active_catchers:
+            continue
+        for catchers in active_catchers.values():
+            for key, catcher, catchings in catchers:
+                yield from (
+                    (key, start, end)
+                    for start, end in _catch_in_token(
+                        token, i, catcher, catchings, cache
                     )
+                )
+
+def _find_matches(tokens, catcher, cache):
+    catchings = {}
+    for i, token in enumerate(tokens):
+        yield from _catch_in_token(token, i, catcher, catchings, cache)
 
 
 ONE = "1"
@@ -421,21 +455,21 @@ def _catcherfunc_from_tokenspec(tokenspec):
         return lambda x, _: True
     funcs = []
     for attr, value in tokenspec.items():
+        key = json_dumps({attr: value})
         if attr == "_":
             if not isinstance(value, dict):
                 raise ValueError(Errors.E154.format())
-            funcs.append(_evalfunc_from_extensions(value))
+            funcs.append((key, _evalfunc_from_extensions(value)))
         elif attr == "REGEX":
-            funcs.append(lambda x: True)
+            funcs.append((key, lambda x, _: True))
         elif attr != "OP":
-            funcs.append(_evalfunc_from_attr(attr, value))
+            funcs.append((key, _evalfunc_from_attr(attr, value)))
 
     def evalfunc(x, bcmp, cache):
-        for f in funcs:
-            if f in cache:
-                return cache[f]
-            res = f(x) == bcmp
-            cache.setdefault(f, res)
+        for k, f in funcs:
+            if k not in cache:
+                cache.setdefault(k, {})
+            res = f(x, cache[k]) == bcmp
             if not res:
                 return False
         return True
@@ -447,7 +481,7 @@ def _catcherfunc_from_tokenspec(tokenspec):
 def _evalfunc_from_attr(attr, value):
     if isinstance(value, dict):
         return _evalfunc_from_predicates(attr, value)
-    return lambda x: value == _get_token_attr(x, attr)
+    return lambda x, _: value == _get_token_attr(x, attr)
 
 
 def _evalfunc_from_extensions(extensions):
@@ -456,15 +490,18 @@ def _evalfunc_from_extensions(extensions):
     for ext, value in extensions.items():
         if isinstance(value, dict):
             return _evalfunc_from_predicates(ext, value, True)
-        return lambda x: x._.get(ext) == value
+        return lambda x, _: x._.get(ext) == value
 
 
 def _evalfunc_from_predicates(attr, predicates, in_ext=False):
-    def evalfunc(x, preds):
+    def evalfunc(x, preds, cache):
         for pred, value in preds.items():
-            func = _evalfunc_from_predicate(pred, value, attr, in_ext)
-            if not func(x):
+            res = _evalfunc_from_predicate(x, pred, value, attr, cache, in_ext)
+            if not res:
                 return False
+            # func = _evalfunc_from_predicate(pred, value, attr, in_ext)
+            # if not func(x):
+                # return False
         return True
 
     preds = {**predicates}
@@ -472,7 +509,7 @@ def _evalfunc_from_predicates(attr, predicates, in_ext=False):
         if not isinstance(value, list):
             continue
         preds[pred] = frozenset(value)
-    return lambda x: evalfunc(x, preds)
+    return lambda x, cache: evalfunc(x, preds, cache)
 
 
 _PFUNC_LOOKUP = {
@@ -488,10 +525,18 @@ _PFUNC_LOOKUP = {
 }
 
 
-def _evalfunc_from_predicate(pred, value, attr, in_ext=False):
-    return lambda x: _PFUNC_LOOKUP[pred](
-        x._.get(attr) if in_ext else _get_token_attr(x, attr), value,
-    )
+def _evalfunc_from_predicate(token, pred, value, attr, cache, in_ext=False):
+    val = token._.get(attr) if in_ext else _get_token_attr(token, attr)
+    key = val if isinstance(val, str) else str(val)
+    if key in cache:
+        return cache[key]
+    res = _PFUNC_LOOKUP[pred](val, value)
+    cache[key] = res
+    return res
+
+    # return lambda x: _PFUNC_LOOKUP[pred](
+    #     x._.get(attr) if in_ext else _get_token_attr(x, attr), value,
+    # )
 
 
 @lru_cache(None)
@@ -549,7 +594,7 @@ _REGEX_ONE_TOKEN = r"[^ ]+"
 def _regex_from_items(items):
     return (
         # if only about attributes, no regex
-        None  # r"[\s\S]+"
+        None # r"[\s\S]+"
         if not items or all(_REGEX_ONE_TOKEN in r for r in items)
         else _regex_wrap_bounds(r"".join([r for r in items if r]), left=True)
     )
@@ -629,11 +674,11 @@ def _regex_wrap_bounds(text, left=None, right=None):
 
 
 _WRAP_OP_LOOKUP = {
-        "*": "(?:{}(?:[^a-zA-Z0-9]+|$)*)*",
-        "+": "(?:{}(?:[^a-zA-Z0-9]+|$)*)+",
-        "?": "(?:{}(?:[^a-zA-Z0-9]+|$)*)?",
-        "!": "(?!{}(?:[^a-zA-Z0-9]+|$)*)[^ ]+",
-        "1": "(?:{}(?:[^a-zA-Z0-9]+|$)*)",
+        "*": "(?:{}(?:[^a-zA-Z0-9]+?|$))*",
+        "+": "(?:{}(?:[^a-zA-Z0-9]+?|$))+",
+        "?": "(?:{}(?:[^a-zA-Z0-9]*?|$))?",
+        "!": "(?!{}(?:[^a-zA-Z0-9]+?|$))[^ ]+",
+        "1": "(?:{}(?:[^a-zA-Z0-9]+?|$))",
     }
 
 
