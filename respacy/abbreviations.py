@@ -1,274 +1,10 @@
 from collections import defaultdict
 from typing import Dict, List, Optional, Set, Tuple, Union
 
-from spacy.lang import char_classes
 from spacy.matcher import Matcher
 from spacy.tokens import Doc, Span
 
-
-def find_acronym(
-    *, long_form: str, long_index: int, short_form: str, short_index: int
-) -> Union[Tuple[int, int], None]:
-    """
-    Find an abbreviation matching an acronym.
-    Implements an abbreviation detection algorithm which works by enumerating the characters 
-    in the short form of the abbreviation, checking that they can be matched against characters 
-    in a candidate text for the long form in order, as well as requiring that each letter of 
-    the abbreviated form matches the _beginning_ letter of a word.
-
-    Parameters
-    ----------
-    long_form: str, required.
-        The long form candidate of the definition.
-    long_index: int, required.
-        The last character index of the long form candidate.
-    short_form: str, required.
-        The abbreviation candidate.
-    short_index: int, required.
-        The last character index of the abbreviation candidate.
-
-    Returns
-    -------
-    The first and last character index of the long form expansion, or None is a match is not found.
-    """
-
-    # Hold as bound delimiter
-    long_index_end = long_index
-
-    while short_index >= 0 and long_index >= 0:
-
-        # Get next abbreviation char to check
-        current_char = short_form[short_index].lower()
-
-        # We don't check non alphabetic characters.
-        # NOTE: should never happen a non alphabetic char here.
-        if not current_char.isalpha():
-            short_index -= 1
-            continue
-
-        # Jump to the beginning of a word
-        # (first non alpha-numeric char or left ending of the string)
-        while long_index >= 0 and long_form[long_index].isalnum():
-            long_index -= 1
-
-        # Non alpha-numeric tail char, skip
-        if long_index == long_index_end:
-            long_index -= 1
-            long_index_end -= 1
-            continue
-
-        # An abbreviation char has matched
-        # move to the next one
-        if long_form[long_index + 1].lower() == current_char:
-            short_index -= 1
-
-        # Go forward
-        long_index -= 1
-
-    if short_index >= 0:
-        return
-
-    return long_index, long_index_end
-
-
-def find_sh_abbreviation(
-    *, long_form: str, long_index: int, short_form: str, short_index: int
-) -> Union[Tuple[int, int], None]:
-    """
-    Find an abbreviation matching within a single word first.
-    Implements the abbreviation detection algorithm in "A simple algorithm
-    for identifying abbreviation definitions in biomedical text.", (Schwartz & Hearst, 2003).
-
-    The algorithm works by enumerating the characters in the short form of the abbreviation,
-    checking that they can be matched against characters in a candidate text for the long form
-    in order, as well as requiring that the first letter of the abbreviated form matches the
-    _beginning_ letter of a word.
-
-    Parameters
-    ----------
-    long_form: str, required.
-        The long form candidate of the definition.
-    long_index: int, required.
-        The last character index of the long form candidate.
-    short_form: str, required.
-        The abbreviation candidate.
-    short_index: int, required.
-        The last character index of the abbreviation candidate.
-
-    Returns
-    -------
-    The first and last character index of the long form expansion, or None is a match is not found.
-    """
-
-    # Hold as bound delimiter
-    long_index_end = long_index
-
-    while short_index >= 0:
-
-        # Get next abbreviation char to check
-        current_char = short_form[short_index].lower()
-
-        # We don't check non alpha-numeric characters.
-        # NOTE: should never happen a non alphabetic char here.
-        if not current_char.isalpha():
-            short_index -= 1
-            continue
-
-        # Does the character match at this position? ...
-        while (
-            (long_index >= 0 and long_form[long_index].lower() != current_char)
-            or
-            # ... or if we are checking the first character of the abbreviation, we enforce
-            # to be the _starting_ character of a span.
-            (
-                short_index == 0
-                and long_index > 0
-                and long_form[long_index - 1].isalnum()
-            )
-        ):
-            if (
-                not long_form[long_index].isalnum()
-                and long_index == long_index_end
-            ):
-                long_index_end -= 1
-
-            long_index -= 1
-
-        if long_index < 0:
-            return
-
-        long_index -= 1
-        short_index -= 1
-
-    return long_index
-
-
-def find_abbreviation(
-    long_form_candidate: Span, short_form_candidate: Span
-) -> Tuple[Span, Optional[Span]]:
-    """
-    Implements an abbreviation detection algorithm which first tries to resolve any acronym
-    and then, if it fails, applies a detection algorithm based on "A simple algorithm for 
-    identifying abbreviation definitions in biomedical text.", (Schwartz & Hearst, 2003).
-
-    Parameters
-    ----------
-    long_form_candidate: Span, required.
-        The spaCy span for the long form candidate of the definition.
-    short_form_candidate: Span, required.
-        The spaCy span for the abbreviation candidate.
-
-    Returns
-    -------
-    A Tuple[Span, Optional[Span]], representing the short form abbreviation and the
-    span corresponding to the long form expansion, or None if a match is not found.
-    """
-    long_form = " ".join([x.text for x in long_form_candidate])
-    short_form = " ".join([x.text for x in short_form_candidate])
-
-    long_index = len(long_form) - 1
-    short_index = len(short_form) - 1
-
-    # Try acronym first
-    long_bounds = find_acronym(
-        long_form=long_form,
-        long_index=long_index,
-        short_form=short_form,
-        short_index=short_index,
-    )
-
-    # Try scispaCy abbreviation then
-    if long_bounds is None:
-        long_bounds = find_sh_abbreviation(
-            long_form=long_form,
-            long_index=long_index,
-            short_form=short_form,
-            short_index=short_index,
-        )
-
-    # If all failed, return empty
-    if long_bounds is None:
-        return short_form_candidate, None
-
-    # Catch bounds
-    if isinstance(long_bounds, int):
-        long_i_start = long_i_end = long_bounds
-    else:
-        long_i_start, long_i_end = long_bounds
-
-    # If we complete the string, we end up with lower 0 here,
-    # but really we want all of the text.
-    long_i_start = max(long_i_start, 0)
-
-    # Now we know the character index of the start and the end of the character span,
-    # here we just translate them to the first token beginning after that
-    # start and the last before that end, so we can return a spaCy span instead.
-    word_lengths = 0
-    starting_index = None
-    ending_index = None
-    for i, word in enumerate(long_form_candidate):
-        word_lengths += len(word)
-        if word_lengths > long_i_start and starting_index is None:
-            starting_index = i
-        if word_lengths >= long_i_end:
-            ending_index = i
-            break
-
-    # Increment ending_index whether
-    # it is matching a single word
-    if ending_index == starting_index:
-        ending_index += 1
-
-    return (
-        short_form_candidate,
-        long_form_candidate[starting_index:ending_index],
-    )
-
-
-def filter_matches(
-    matcher_output: List[Tuple[int, int, int]], doc: Doc
-) -> List[Tuple[Span, Span]]:
-    # Filter into two cases:
-    # 1. <Short Form> ( <Long Form> )
-    # 2. <Long Form> (<Short Form>) [this case is most common].
-    candidates = []
-    for match in matcher_output:
-        start = match[1]
-        end = match[2]
-        # Ignore spans with more than 8 words in.
-        if end - start > 8:
-            continue
-        if end - start > 3:
-            # Long form is inside the parens.
-            # Take two words before.
-            short_form_candidate = doc[start - 3 : start - 1]
-            if short_form_filter(short_form_candidate):
-                candidates.append((doc[start:end], short_form_candidate))
-        else:
-            # Normal case.
-            # Short form is inside the parens.
-            # Sum character lengths of contents of parens.
-            abbreviation_length = sum([len(x) for x in doc[start:end]])
-            max_words = min(abbreviation_length + 5, abbreviation_length * 2)
-            long_start = max(start - max_words - 1, 0)
-            long_end = start
-            # Skip whether there is no span
-            if long_end <= long_start:
-                continue
-            # Look up to max_words backwards
-            long_form_candidate = doc[long_start:long_end]
-            candidates.append((long_form_candidate, doc[start:end]))
-    return candidates
-
-
-def short_form_filter(span: Span) -> bool:
-    # All words are between length 2 and 10
-    if not all([2 < len(x) < 10 for x in span]):
-        return False
-    # At least one word is alpha numeric
-    if not any([x.is_alpha for x in span]):
-        return False
-    return True
+from .util import span_idx2i
 
 
 class AbbreviationDetector:
@@ -313,7 +49,7 @@ class AbbreviationDetector:
         you want to find a definition for.
         """
         dummy_matches = [(-1, int(span.start), int(span.end))]
-        filtered = filter_matches(dummy_matches, doc)
+        filtered = _filter_matches(dummy_matches, doc)
         abbreviations = self.find_matches_for(filtered, doc)
 
         if not abbreviations:
@@ -327,14 +63,13 @@ class AbbreviationDetector:
             [
                 (
                     x[0],
-                    x[1] + (1 if doc[x[1]].text in char_classes.PUNCT else 0),
-                    x[2]
-                    - (1 if doc[x[2] - 1].text in char_classes.PUNCT else 0),
+                    x[1] + (1 if doc[x[1]].is_punct else 0),
+                    x[2] - (1 if doc[x[2] - 1].is_punct else 0),
                 )
                 for x in matches
             ]
         )
-        filtered = filter_matches(matches_no_punct, doc)
+        filtered = _filter_matches(matches_no_punct, doc)
         occurences = self.find_matches_for(filtered, doc)
 
         for (long_form, short_forms) in occurences:
@@ -358,8 +93,10 @@ class AbbreviationDetector:
             # defined twice in a document. There's not much we can do about this,
             # but at least the case which is discarded will be picked up below by
             # the global matcher. So it's likely that things will work out ok most of the time.
-            new_long = long.string not in already_seen_long if long else False
-            new_short = short.string not in already_seen_short
+            new_long = (
+                True  # long.string not in already_seen_long if long else False
+            )
+            new_short = True  # short.string not in already_seen_short
             if long is not None and new_long and new_short:
                 already_seen_long.add(long.string)
                 already_seen_short.add(short.string)
@@ -380,3 +117,156 @@ class AbbreviationDetector:
             self.global_matcher.remove(key)
 
         return list((k, v) for k, v in all_occurences.items())
+
+
+def find_abbreviation(
+    long_form_candidate: Span, short_form_candidate: Span
+) -> Tuple[Span, Optional[Span]]:
+    """
+    Implements an abbreviation detection algorithm which merges an 
+    acronym resolution algorithm with detection algorithm based on 
+    "A simple algorithm for identifying abbreviation definitions in 
+    biomedical text.", (Schwartz & Hearst, 2003).
+
+    Parameters
+    ----------
+    long_form_candidate: Span, required.
+        The spaCy span for the long form candidate of the definition.
+    short_form_candidate: Span, required.
+        The spaCy span for the abbreviation candidate.
+
+    Returns
+    -------
+    A Tuple[Span, Union[Span, None]], representing the short form 
+    abbreviation and the span corresponding to the long form expansion, 
+    or None if a match was not found.
+    """
+    long_form = " ".join([x.text for x in long_form_candidate])
+    short_form = " ".join([x.text for x in short_form_candidate])
+
+    long_index = len(long_form) - 1
+    short_index = len(short_form) - 1
+
+    bounds = _find_abbreviation(
+        long_form=long_form,
+        long_index=long_index,
+        short_form=short_form,
+        short_index=short_index,
+    )
+
+    print(bounds)
+
+    if not bounds:
+        return short_form_candidate, None
+
+    start_idx, end_idx = bounds
+    start, end = span_idx2i(long_form_candidate, start_idx, end_idx)
+
+    return (
+        short_form_candidate,
+        long_form_candidate[start:end],
+    )
+
+
+def _find_abbreviation(
+    *, long_form: str, long_index: int, short_form: str, short_index: int
+) -> Union[Tuple[int, int], None]:
+    # An abbreviation char must match the starting
+    # char of a word (acronym) or an its internal one.
+    # In the latter case, the next abbreviation char
+    # must be another internal char of the same word
+    # or its beginning. In any case, a word which have
+    # matched an internal char must have been matched
+    # also at its starting char. Moreover, the first char
+    # of the abbreviation must be the starting char of a word.
+    short_index_reset = short_index
+    long_index_end = long_index  # alnum bounds
+    has_internal_match = False
+    while short_index >= 0 and long_index >= 0:
+        # Get next abbreviation char to check
+        short_char = short_form[short_index].lower()
+        # Don't check non alphabetic characters
+        if not short_char.isalpha():
+            short_index -= 1
+            continue
+        long_char = long_form[long_index].lower()
+        is_starting_char = (
+            True
+            if long_index == 0
+            else not long_form[long_index - 1].isalnum()
+        )
+        if long_char != short_char:
+            # Shrink bounds as the long form
+            # ends with non-alphanumeric chars
+            if long_index == long_index_end and not long_char.isalnum():
+                long_index_end -= 1
+            # A word which have matched an internal char
+            # must match also its starting char
+            if is_starting_char and has_internal_match:
+                short_index = short_index_reset
+                has_internal_match = False
+                continue
+            long_index -= 1
+            continue
+        # First abbreviation char must match
+        # the starting char of a word
+        if short_index == 0 and not is_starting_char:
+            long_index -= 1
+            continue
+        if long_index == 0:
+            long_index -= 1
+            short_index -= 1
+        elif long_index > 0:
+            long_index -= 1
+            short_index -= 1
+            if not is_starting_char:
+                has_internal_match = True
+    if short_index >= 0:
+        return
+    return max(long_index, 0), long_index_end + 1
+
+
+def _filter_matches(
+    matcher_output: List[Tuple[int, int, int]], doc: Doc
+) -> List[Tuple[Span, Span]]:
+    # Filter into two cases:
+    # 1. <Short Form> ( <Long Form> )
+    # 2. <Long Form> (<Short Form>) [this case is most common].
+    candidates = []
+    for match in matcher_output:
+        start = match[1]
+        end = match[2]
+        # Ignore spans with more than 8 words in.
+        if end - start > 8:
+            continue
+        if end - start > 3:
+            # Long form is inside the parens.
+            # Take two words before.
+            short_form_candidate = doc[start - 3 : start - 1]
+            if _short_form_filter(short_form_candidate):
+                candidates.append((doc[start:end], short_form_candidate))
+        else:
+            # Normal case.
+            # Short form is inside the parens.
+            # Sum character lengths of contents of parens.
+            abbreviation_length = sum([len(x) for x in doc[start:end]])
+            max_words = min(abbreviation_length + 5, abbreviation_length * 2)
+            long_start = max(start - max_words - 1, 0)
+            long_end = start
+            # Skip whether there is no span
+            if long_end <= long_start:
+                continue
+            # Look up to max_words backwards
+            long_form_candidate = doc[long_start:long_end]
+            candidates.append((long_form_candidate, doc[start:end]))
+    return candidates
+
+
+def _short_form_filter(span: Span) -> bool:
+    # All words are between length 2 and 10
+    if not all([2 < len(x) < 10 for x in span]):
+        return False
+    # At least one word is alpha numeric
+    if not any([x.is_alpha for x in span]):
+        return False
+    return True

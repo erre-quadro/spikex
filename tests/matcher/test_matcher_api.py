@@ -239,14 +239,14 @@ def test_matcher_orth_regex(en_vocab):
 
 
 @pytest.mark.parametrize(
-    "text, count", 
+    "text, count",
     [
         ("baking with ingredients", 1),
         ("ingredients for baking", 1),
         ("eating after baking", 2),
         ("my baking hobby", 1),
         ("ingredients not backed", 0),
-    ]
+    ],
 )
 def test_matcher_partial_token_regex(nlp, text, count):
     matcher = Matcher(nlp.vocab)
