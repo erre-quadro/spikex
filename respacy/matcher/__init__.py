@@ -1,1 +1,1 @@
-from .rematcher import REMatcher
+from .matcher import Matcher

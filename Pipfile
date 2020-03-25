@@ -26,9 +26,9 @@ yapf = "*"
 [packages]
 jsonschema = "*"
 regex = "*"
-respacy = {path = ".",editable = true}
 typer = "*"
 wasabi = "*"
+respacy = {editable = true,path = "."}
 spacy = "*"
 
 [pipenv]

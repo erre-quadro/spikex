@@ -1,20 +1,24 @@
 import cProfile
 import pstats
+from pathlib import Path
 
 import plac
 import spacy
+from spacy.matcher import Matcher as _Matcher
 from srsly import read_jsonl
-from tqdm import tqdm
 from wasabi import msg
 
-from ..matcher import REMatcher
+from ..matcher import Matcher
 
 
 @plac.annotations()
-def profile(patterns_path):
+def profile(patterns_path, matcher_type: str = None):
     sample_doc = doc()
-    # matcher = Matcher(sample_doc.vocab)
-    matcher = REMatcher()
+    matcher = (
+        Matcher(sample_doc.vocab)
+        if matcher_type == "respacy"
+        else _Matcher(sample_doc.vocab)
+    )
     matcher.add("Profile", patterns(patterns_path))
     cProfile.runctx(
         "matches(matcher, sample_doc)", globals(), locals(), "Profile.prof"
@@ -25,10 +29,11 @@ def profile(patterns_path):
 
 
 def matches(matcher, doc):
-    with tqdm(total=len(matcher)) as pbar:
-        last = 0
-        for match in tqdm(matcher(doc)):
-            pbar.update(match[1] - last)
+    count = 0
+    for _, s, e in matcher(doc):
+        count += 1
+        print(doc[s:e])
+    print(count)
 
 
 def patterns(patterns_path):
@@ -37,5 +42,5 @@ def patterns(patterns_path):
 
 def doc():
     return spacy.load("en_core_web_sm")(
-        open(resources_path.joinpath("sample.txt"), "r").read()
+        open(Path("resources").joinpath("sample.txt"), "r").read()
     )

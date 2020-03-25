@@ -1,54 +1,49 @@
 import time
 from math import ceil, floor
-from typing import Union
+from typing import List, Union
 
-from spacy.tokens import Doc, Span
+from spacy.tokens import Doc, Span, Token
 
 
 def span_idx2i(
-    source: Union[Doc, Span], start_idx: int, end_idx: int, maxlen: int = None
+    source: Union[Doc, Span, List[Token]],
+    start_idx: int,
+    end_idx: int,
+    maxlen: int = None,
 ):
     start_i = 0 if start_idx == 0 else -1
-    maxlen = maxlen or len(source.text)
+    maxlen = maxlen or (
+        sum([len(t) for t in source])
+        if isinstance(source, list)
+        else len(source.text)
+    )
     end_i = len(source) if end_idx == maxlen else -1
     if start_i >= 0 and end_i >= 0:
         return start_i, end_i
     start_i = idx2i(source, start_idx)
     if end_i >= 0:
         return start_i, end_i
-    for token in source[start_i + 1 :]:
-        if token.idx < end_idx:
+    last_i = start_i
+    offset_i = source[0].i
+    offset_idx = source[0].idx
+    for token in source[start_i:]:
+        last_i = token.i - offset_i
+        if token.idx - offset_idx < end_idx:
             continue
-        return start_i, token.i
-
-    # for token in doc:
-    #     if start_i < 0:
-    #         if token.idx < start_idx:
-    #             continue
-    #         if token.idx == start_idx:
-    #             start_i = token.i
-    #         else:
-    #             start_i = token.i - 1
-    #     elif end_i < 0:
-    #         if token.idx < end_idx:
-    #             continue
-    #         return start_i, token.i
-    #     else:
-    #         return start_i, end_i
-    # if start_i > 0:
-    #     return start_i, len(doc)
+        return start_i, last_i
+    token = source[last_i]
+    last_idx = token.idx - offset_idx
+    if end_idx < last_idx:
+        return start_i, last_i
+    if end_idx < last_idx + len(token):
+        return start_i, last_i + 1
+    return start_i, start_i + 1
 
 
-def idx2i(source: Union[Doc, Span], idx: int):
-    # for token in source:
-    #     if token.idx < idx:
-    #         continue
-    #     elif token.idx == idx:
-    #         return token.i
-    #     else:
-    #         return token.i - 1
-
+def idx2i(source: Union[Doc, Span, List[Token]], idx: int):
     max_i = len(source)
+    offset_i = source[0].i
+    offset_idx = source[0].idx
 
     def _idx2i(_idx, start, end):
         if start == end:
@@ -57,32 +52,33 @@ def idx2i(source: Union[Doc, Span], idx: int):
         fhalf = floor(dhalf)
         if fhalf >= max_i:
             return fhalf - 1
-        ftoken = source[fhalf]
+        if fhalf == 0:
+            return 0
         chalf = ceil(dhalf)
         if chalf >= max_i:
             return chalf - 1
-        ctoken = source[chalf]
-        token = None
-        if _idx <= ftoken.idx + 1:
-            token = ftoken
-        elif _idx >= ctoken.idx - 1:
-            token = ctoken
-        elif _idx <= ftoken.idx + len(ftoken):
-            _idx = ftoken.idx
-            token = ftoken
-        elif _idx <= ctoken.idx + len(ctoken):
-            _idx = ctoken.idx
-            token = ctoken
+        fidx = source[fhalf].idx - offset_idx
+        cidx = source[chalf].idx - offset_idx
+        if _idx <= fidx + 1:
+            coord = (fhalf, fidx)
+        elif _idx >= cidx - 1:
+            coord = (chalf, cidx)
+        elif _idx <= fidx + len(source[fhalf]):
+            _idx = fidx
+            coord = (fhalf, fidx)
+        elif _idx <= cidx + len(source[chalf]):
+            _idx = cidx
+            coord = (chalf, cidx)
         else:
             return
-        if token.i == 0 or token.idx == _idx or token.idx - 1 == _idx:
-            return token.i
-        if token.idx + 1 == _idx:
-            return token.i + 1
-        if token.idx > _idx:
-            return _idx2i(_idx, start, token.i)
+        if coord[1] == _idx or coord[1] - 1 == _idx:
+            return coord[0]
+        if coord[1] + 1 == _idx:
+            return coord[0] + 1
+        if coord[1] > _idx:
+            return _idx2i(_idx, start, coord[0])
         else:
-            return _idx2i(_idx, token.i, end)
+            return _idx2i(_idx, coord[0], end)
 
     return _idx2i(idx, 0, max_i)
 

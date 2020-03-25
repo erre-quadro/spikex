@@ -2,24 +2,24 @@ import pytest
 from mock import Mock
 from spacy.tokens import Doc, Token
 
-from respacy.matcher import REMatcher
+from respacy.matcher import Matcher
 
 
 @pytest.fixture
-def matcher():
+def matcher(en_vocab):
     rules = {
         "JS": [[{"ORTH": "JavaScript"}]],
         "GoogleNow": [[{"ORTH": "Google"}, {"ORTH": "Now"}]],
         "Java": [[{"LOWER": "java"}]],
     }
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     for key, patterns in rules.items():
         matcher.add(key, patterns)
     return matcher
 
 
-def test_matcher_from_api_docs():
-    matcher = REMatcher()
+def test_matcher_from_api_docs(en_vocab):
+    matcher = Matcher(en_vocab)
     pattern = [{"ORTH": "test"}]
     assert len(matcher) == 0
     matcher.add("Rule", [pattern])
@@ -48,7 +48,7 @@ def test_matcher_from_usage_docs(en_vocab):
         token = doc[start]
         token.vocab[token.text].norm_ = "happy emoji"
 
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     matcher.add("HAPPY", pos_patterns, on_match=label_sentiment)
     matcher(doc)
     assert doc.sentiment != 0
@@ -95,20 +95,20 @@ def test_matcher_match_multi(matcher, en_vocab):
 
 def test_matcher_empty_dict(en_vocab):
     """Test matcher allows empty token specs, meaning match on any token."""
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     doc = Doc(en_vocab, words=["a", "b", "c"])
     matcher.add("A.C", [[{"ORTH": "a"}, {}, {"ORTH": "c"}]])
     matches = matcher(doc)
     assert len(matches) == 1
     assert matches[0][1:] == (0, 3)
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     matcher.add("A.", [[{"ORTH": "a"}, {}]])
     matches = matcher(doc)
     assert matches[0][1:] == (0, 2)
 
 
 def test_matcher_operator_shadow(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     doc = Doc(en_vocab, words=["a", "b", "c"])
     pattern = [{"ORTH": "a"}, {"IS_ALPHA": True, "OP": "+"}, {"ORTH": "c"}]
     matcher.add("A.C", [pattern])
@@ -145,14 +145,14 @@ def test_matcher_match_zero(matcher, en_vocab):
 def test_matcher_match_zero_plus(en_vocab):
     words = 'He said , " some words " ...'.split()
     pattern = [{"ORTH": '"'}, {"OP": "*", "IS_PUNCT": False}, {"ORTH": '"'}]
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     matcher.add("Quote", [pattern])
     doc = Doc(en_vocab, words=words)
     assert len(matcher(doc)) == 1
 
 
 def test_matcher_match_one_plus(matcher, en_vocab):
-    control = REMatcher()
+    control = Matcher(en_vocab)
     control.add("BasicPhilippe", [[{"ORTH": "Philippe"}]])
     doc = Doc(en_vocab, words=["Philippe", "Philippe"])
     m = control(doc)
@@ -168,7 +168,7 @@ def test_matcher_match_one_plus(matcher, en_vocab):
 
 def test_matcher_any_token_operator(en_vocab):
     """Test that patterns with "any token" {} work with operators."""
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     matcher.add("TEST", [[{"ORTH": "test"}, {"OP": "*"}]])
     doc = Doc(en_vocab, words=["test", "hello", "world"])
     matches = [doc[start:end].text for _, start, end in matcher(doc)]
@@ -179,7 +179,7 @@ def test_matcher_any_token_operator(en_vocab):
 
 
 def test_matcher_extension_attribute(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     get_is_fruit = lambda token: token.text in ("apple", "banana")
     Token.set_extension("is_fruit", getter=get_is_fruit, force=True)
     pattern = [{"ORTH": "an"}, {"_": {"is_fruit": True}}]
@@ -193,7 +193,7 @@ def test_matcher_extension_attribute(en_vocab):
 
 
 def test_matcher_set_value(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     pattern = [{"ORTH": {"IN": ["an", "a"]}}]
     matcher.add("A_OR_AN", [pattern])
     doc = Doc(en_vocab, words=["an", "a", "apple"])
@@ -205,7 +205,7 @@ def test_matcher_set_value(en_vocab):
 
 
 def test_matcher_set_value_operator(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     pattern = [{"ORTH": {"IN": ["a", "the"]}, "OP": "?"}, {"ORTH": "house"}]
     matcher.add("DET_HOUSE", [pattern])
     doc = Doc(en_vocab, words=["In", "a", "house"])
@@ -217,7 +217,17 @@ def test_matcher_set_value_operator(en_vocab):
 
 
 def test_matcher_regex(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
+    pattern = [{"REGEX": r"\bUS\d+\b"}]
+    matcher.add("REGEX", [pattern])
+    text = "This is a test for a regex, US12345."
+    doc = Doc(en_vocab, words=text.split())
+    matches = matcher(doc)
+    assert matches == [(14188318820720882904, 7, 8)]
+
+
+def test_matcher_orth_regex(en_vocab):
+    matcher = Matcher(en_vocab)
     pattern = [{"ORTH": {"REGEX": r"(?:a|an)"}}]
     matcher.add("A_OR_AN", [pattern])
     doc = Doc(en_vocab, words=["an", "a", "hi"])
@@ -228,8 +238,25 @@ def test_matcher_regex(en_vocab):
     assert len(matches) == 0
 
 
+@pytest.mark.parametrize(
+    "text, count",
+    [
+        ("baking with ingredients", 1),
+        ("ingredients for baking", 1),
+        ("eating after baking", 2),
+        ("my baking hobby", 1),
+        ("ingredients not backed", 0),
+    ],
+)
+def test_matcher_partial_token_regex(nlp, text, count):
+    matcher = Matcher(nlp.vocab)
+    pattern = [{"LOWER": {"REGEX": r"ing\b"}}]
+    matcher.add("ING_FORM", [pattern])
+    assert len(matcher(nlp(text))) == count
+
+
 def test_matcher_regex_shape(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     pattern = [{"SHAPE": {"REGEX": r"^[^x]+$"}}]
     matcher.add("NON_ALPHA", [pattern])
     doc = Doc(en_vocab, words=["99", "problems", "!"])
@@ -241,7 +268,7 @@ def test_matcher_regex_shape(en_vocab):
 
 
 def test_matcher_compare_length(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     pattern = [{"LENGTH": {">=": 2}}]
     matcher.add("LENGTH_COMPARE", [pattern])
     doc = Doc(en_vocab, words=["a", "aa", "aaa"])
@@ -253,7 +280,7 @@ def test_matcher_compare_length(en_vocab):
 
 
 def test_matcher_extension_set_membership(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     get_reversed = lambda token: "".join(reversed(token.text))
     Token.set_extension("reversed", getter=get_reversed, force=True)
     pattern = [{"_": {"reversed": {"IN": ["eyb", "ih"]}}}]
@@ -272,7 +299,7 @@ def text():
 
 
 def test_matcher_basic_check(en_vocab):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     # Potential mistake: pass in pattern instead of list of patterns
     pattern = [{"TEXT": "hello"}, {"TEXT": "world"}]
     with pytest.raises(ValueError):
@@ -286,7 +313,7 @@ def test_attr_pipeline_checks(en_vocab):
     doc2.is_tagged = True
     doc3 = Doc(en_vocab, words=["Test"])
     # DEP requires is_parsed
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     matcher.add("TEST", [[{"DEP": "a"}]])
     matcher(doc1)
     with pytest.raises(ValueError):
@@ -295,7 +322,7 @@ def test_attr_pipeline_checks(en_vocab):
         matcher(doc3)
     # TAG, POS, LEMMA require is_tagged
     for attr in ("TAG", "POS", "LEMMA"):
-        matcher = REMatcher()
+        matcher = Matcher(en_vocab)
         matcher.add("TEST", [[{attr: "a"}]])
         matcher(doc2)
         with pytest.raises(ValueError):
@@ -303,12 +330,12 @@ def test_attr_pipeline_checks(en_vocab):
         with pytest.raises(ValueError):
             matcher(doc3)
     # TEXT/ORTH only require tokens
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     matcher.add("TEST", [[{"ORTH": "a"}]])
     matcher(doc1)
     matcher(doc2)
     matcher(doc3)
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     matcher.add("TEST", [[{"TEXT": "a"}]])
     matcher(doc1)
     matcher(doc2)
@@ -337,7 +364,7 @@ def test_attr_pipeline_checks(en_vocab):
     ],
 )
 def test_matcher_schema_token_attributes(en_vocab, pattern, text):
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     doc = Doc(en_vocab, words=text.split(" "))
     matcher.add("Rule", [pattern])
     assert len(matcher) == 1
@@ -347,7 +374,7 @@ def test_matcher_schema_token_attributes(en_vocab, pattern, text):
 
 def test_matcher_valid_callback(en_vocab):
     """Test that on_match can only be None or callable."""
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     with pytest.raises(ValueError):
         matcher.add("TEST", [[{"TEXT": "test"}]], on_match=[])
     matcher(Doc(en_vocab, words=["test"]))
@@ -355,7 +382,7 @@ def test_matcher_valid_callback(en_vocab):
 
 def test_matcher_callback(en_vocab):
     mock = Mock()
-    matcher = REMatcher()
+    matcher = Matcher(en_vocab)
     pattern = [{"ORTH": "test"}]
     matcher.add("Rule", [pattern], on_match=mock)
     doc = Doc(en_vocab, words=["This", "is", "a", "test", "."])
