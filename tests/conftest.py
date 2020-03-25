@@ -27,9 +27,6 @@ def nlp():
     return spacy.load("en_core_web_sm")
 
 
-# Fixtures for language tokenizers (languages sorted alphabetically)
-
-
 @pytest.fixture(scope="session")
 def en_tokenizer():
     return get_lang_class("en").Defaults.create_tokenizer()

@@ -147,20 +147,20 @@ def find_abbreviation(
     long_index = len(long_form) - 1
     short_index = len(short_form) - 1
 
-    bounds = _find_abbreviation(
+    bounds_idx = _find_abbreviation(
         long_form=long_form,
         long_index=long_index,
         short_form=short_form,
         short_index=short_index,
     )
 
-    print(bounds)
-
-    if not bounds:
+    if not bounds_idx:
         return short_form_candidate, None
 
-    start_idx, end_idx = bounds
-    start, end = span_idx2i(long_form_candidate, start_idx, end_idx)
+    start_idx, end_idx = bounds_idx
+    bounds_i = span_idx2i(long_form_candidate, start_idx, end_idx)
+    start = bounds_i[0] - long_form_candidate.start
+    end = bounds_i[1] - long_form_candidate.start
 
     return (
         short_form_candidate,

@@ -42,5 +42,5 @@ def patterns(patterns_path):
 
 def doc():
     return spacy.load("en_core_web_sm")(
-        open(Path("resources").joinpath("sample_issue.txt"), "r").read()
+        open(Path("resources").joinpath("sample.txt"), "r").read()
     )
