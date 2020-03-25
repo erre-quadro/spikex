@@ -158,9 +158,7 @@ def find_abbreviation(
         return short_form_candidate, None
 
     start_idx, end_idx = bounds_idx
-    bounds_i = span_idx2i(long_form_candidate, start_idx, end_idx)
-    start = bounds_i[0] - long_form_candidate.start
-    end = bounds_i[1] - long_form_candidate.start
+    start, end = span_idx2i(long_form_candidate, start_idx, end_idx)
 
     return (
         short_form_candidate,

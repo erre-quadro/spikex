@@ -187,9 +187,9 @@
         },
         "pyrsistent": {
             "hashes": [
-                "sha256:cdc7b5e3ed77bed61270a47d35434a30617b9becdf2478af76ad2c6ade307280"
+                "sha256:28669905fe725965daa16184933676547c5bb40a5153055a8dee2a4bd7933ad3"
             ],
-            "version": "==0.15.7"
+            "version": "==0.16.0"
         },
         "regex": {
             "hashes": [
@@ -295,11 +295,11 @@
         },
         "typer": {
             "hashes": [
-                "sha256:3872efb6634a9cf1ef28aee363dd48914173485f7e09303c038489dae2db4d8f",
-                "sha256:8fa500e52606717643a15239d76176614899950941509525b20289500267c9b9"
+                "sha256:40e5159fb5a06cd1bb494066dfa6df55754c49b6261cf25b1f99f96cf36f8132",
+                "sha256:7daf5337c9840b0101ca1966544e8f2c34354f877e24381e9e51f346625386da"
             ],
             "index": "pypi",
-            "version": "==0.0.11"
+            "version": "==0.1.0"
         },
         "urllib3": {
             "hashes": [
@@ -752,11 +752,11 @@
         },
         "sphinx": {
             "hashes": [
-                "sha256:b4c750d546ab6d7e05bdff6ac24db8ae3e8b8253a3569b754e445110a0a12b66",
-                "sha256:fc312670b56cb54920d6cc2ced455a22a547910de10b3142276495ced49231cb"
+                "sha256:588ab849305802b0d68e550c9fb7de25555e8b0ce82ceaa5c2826aa518e97a75",
+                "sha256:5f8c74f548865d7ea0cd3c496da98d41ec822f229445281017630d290b8c0851"
             ],
             "index": "pypi",
-            "version": "==2.4.4"
+            "version": "==3.0.0b1"
         },
         "sphinxcontrib-applehelp": {
             "hashes": [
@@ -851,10 +851,10 @@
         },
         "wcwidth": {
             "hashes": [
-                "sha256:8fd29383f539be45b20bd4df0dc29c20ba48654a41e661925e612311e9f3c603",
-                "sha256:f28b3e8a6483e5d49e7f8949ac1a78314e740333ae305b4ba5defd3e74fb37a8"
+                "sha256:cafe2186b3c009a04067022ce1dcd79cb38d8d65ee4f4791b8888d6599d1bbe1",
+                "sha256:ee73862862a156bf77ff92b09034fc4825dd3af9cf81bc5b360668d425f3c5f1"
             ],
-            "version": "==0.1.8"
+            "version": "==0.1.9"
         },
         "wheel": {
             "hashes": [
