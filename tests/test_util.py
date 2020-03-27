@@ -1,5 +1,5 @@
 import pytest
-from spacy.tokens import Doc, Span
+from spacy.tokens import Span
 
 from respacy.util import idx2i, span_idx2i
 
@@ -9,13 +9,13 @@ _TEXT_SAMPLE = "this is a sample text useful for testing"
 @pytest.mark.parametrize(
     "idx, i, slice_at",
     [
-        (0, 0, 0), # first token
-        (10, 3, 2), # central token
-        (33, 7, 4), # last token
-        (4, 1, 0), # space in prev token
-        (13, 3, 2), # middle of a token
-        pytest.param(-1, 0, 0, marks=pytest.mark.xfail), # left out of bounds
-        pytest.param(40, 0, 0, marks=pytest.mark.xfail), # right out of bounds
+        (0, 0, 0),  # first token
+        (10, 3, 2),  # central token
+        (33, 7, 4),  # last token
+        (4, 1, 0),  # space in prev token
+        (13, 3, 2),  # middle of a token
+        pytest.param(-1, 0, 0, marks=pytest.mark.xfail),  # left out of bounds
+        pytest.param(40, 0, 0, marks=pytest.mark.xfail),  # right out of bounds
     ],
 )
 def test_idx2i(nlp, idx, i, slice_at):
@@ -35,16 +35,20 @@ def test_idx2i(nlp, idx, i, slice_at):
 @pytest.mark.parametrize(
     "start_idx, end_idx, start_i, end_i, slice_at",
     [
-        (0, 4, 0, 1, 0), # first token
-        (0, 7, 0, 2, 0), # first tokens
-        (10, 16, 3, 4, 2), # central token
-        (10, 21, 3, 5, 2), # central tokens
-        (33, 40, 7, 8, 4), # last token
-        (29, 40, 6, 8, 4), # last tokens
-        (4, 10, 1, 3, 0), # start and end with space
-        (13, 19, 3, 5, 2), # start and end in middle of a token
-        pytest.param(-1, 1, 0, 0, 0, marks=pytest.mark.xfail), # left out of bounds
-        pytest.param(40, 41, 0, 0, 0, marks=pytest.mark.xfail), # right out of bounds
+        (0, 4, 0, 1, 0),  # first token
+        (0, 7, 0, 2, 0),  # first tokens
+        (10, 16, 3, 4, 2),  # central token
+        (10, 21, 3, 5, 2),  # central tokens
+        (33, 40, 7, 8, 4),  # last token
+        (29, 40, 6, 8, 4),  # last tokens
+        (4, 10, 1, 3, 0),  # start and end with space
+        (13, 19, 3, 5, 2),  # start and end in middle of a token
+        pytest.param(
+            -1, 1, 0, 0, 0, marks=pytest.mark.xfail
+        ),  # left out of bounds
+        pytest.param(
+            40, 41, 0, 0, 0, marks=pytest.mark.xfail
+        ),  # right out of bounds
     ],
 )
 def test_span_idx2i(nlp, start_idx, end_idx, start_i, end_i, slice_at):

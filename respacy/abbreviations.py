@@ -1,5 +1,4 @@
-from collections import defaultdict
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import List, Optional, Set, Tuple, Union
 
 from spacy.matcher import Matcher
 from spacy.tokens import Doc, Span
@@ -50,12 +49,11 @@ class AbbreviationDetector:
         """
         dummy_matches = [(-1, int(span.start), int(span.end))]
         filtered = _filter_matches(dummy_matches, doc)
-        abbreviations = self.find_matches_for(filtered, doc)
+        abbreviations = list(self.find_matches_for(filtered, doc))
 
         if not abbreviations:
             return span, set()
-        else:
-            return abbreviations[0]
+        return abbreviations[0]
 
     def __call__(self, doc: Doc) -> Doc:
         matches = self.matcher(doc)
@@ -72,51 +70,32 @@ class AbbreviationDetector:
         filtered = _filter_matches(matches_no_punct, doc)
         occurences = self.find_matches_for(filtered, doc)
 
-        for (long_form, short_forms) in occurences:
-            for short in short_forms:
-                short._.long_form = long_form
-                doc._.abbreviations.append(short)
+        for long_form, short_form in occurences:
+            short_form._.long_form = long_form
+            doc._.abbreviations.append(short_form)
         return doc
 
     def find_matches_for(
         self, filtered: List[Tuple[Span, Span]], doc: Doc
     ) -> List[Tuple[Span, Set[Span]]]:
-        rules = {}
-        all_occurences: Dict[Span, Set[Span]] = defaultdict(set)
-        already_seen_long: Set[str] = set()
-        already_seen_short: Set[str] = set()
+        seen = {}
+        matches = []
         for (long_candidate, short_candidate) in filtered:
-            short, long = find_abbreviation(long_candidate, short_candidate)
-            # We need the long and short form definitions to be unique, because we need
-            # to store them so we can look them up later. This is a bit of a
-            # pathalogical case also, as it would mean an abbreviation had been
-            # defined twice in a document. There's not much we can do about this,
-            # but at least the case which is discarded will be picked up below by
-            # the global matcher. So it's likely that things will work out ok most of the time.
-            new_long = (
-                True  # long.string not in already_seen_long if long else False
+            long_form, short_form = find_abbreviation(
+                long_candidate, short_candidate
             )
-            new_short = True  # short.string not in already_seen_short
-            if long is not None and new_long and new_short:
-                already_seen_long.add(long.string)
-                already_seen_short.add(short.string)
-                all_occurences[long].add(short)
-                rules[long.string] = long
-                # Add a rule to a matcher to find exactly this substring.
-                self.global_matcher.add(
-                    long.string, None, [{"ORTH": x.text} for x in short]
-                )
-        to_remove = set()
-        global_matches = self.global_matcher(doc)
-        for match, start, end in global_matches:
-            string_key = self.global_matcher.vocab.strings[match]
-            to_remove.add(string_key)
-            all_occurences[rules[string_key]].add(doc[start:end])
-        for key in to_remove:
-            # Clean up the global matcher.
-            self.global_matcher.remove(key)
-
-        return list((k, v) for k, v in all_occurences.items())
+            if short_form is None:
+                continue
+            if long_form is not None:
+                seen[short_form.text] = long_form                
+            matches.append((long_form, short_form))
+        for match in matches:
+            if match[0] is not None:
+                yield match
+                continue
+            if match[1].text not in seen:
+                continue
+            yield (seen[match[1].text], match[1])
 
 
 def find_abbreviation(
@@ -141,8 +120,8 @@ def find_abbreviation(
     abbreviation and the span corresponding to the long form expansion, 
     or None if a match was not found.
     """
-    long_form = " ".join([x.text for x in long_form_candidate])
-    short_form = " ".join([x.text for x in short_form_candidate])
+    long_form = "".join([x.text_with_ws for x in long_form_candidate])
+    short_form = "".join([x.text_with_ws for x in short_form_candidate])
 
     long_index = len(long_form) - 1
     short_index = len(short_form) - 1
@@ -155,14 +134,14 @@ def find_abbreviation(
     )
 
     if not bounds_idx:
-        return short_form_candidate, None
+        return None, short_form_candidate
 
     start_idx, end_idx = bounds_idx
     start, end = span_idx2i(long_form_candidate, start_idx, end_idx)
 
     return (
-        short_form_candidate,
         long_form_candidate[start:end],
+        short_form_candidate,
     )
 
 
@@ -211,14 +190,10 @@ def _find_abbreviation(
         if short_index == 0 and not is_starting_char:
             long_index -= 1
             continue
-        if long_index == 0:
-            long_index -= 1
-            short_index -= 1
-        elif long_index > 0:
-            long_index -= 1
-            short_index -= 1
-            if not is_starting_char:
-                has_internal_match = True
+        long_index -= 1
+        short_index -= 1
+        if not is_starting_char:
+            has_internal_match = True
     if short_index >= 0:
         return
     return max(long_index, 0), long_index_end + 1

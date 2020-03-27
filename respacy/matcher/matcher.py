@@ -1,19 +1,16 @@
 from functools import lru_cache
-from typing import Any, Dict, List, Tuple
 
 import regex as re
 from spacy.attrs import DEP, LEMMA, POS, TAG, intify_attr
 from spacy.errors import Errors, MatchPatternError
-from spacy.strings import get_string_id
+from spacy.matcher import Matcher as _Matcher
 from spacy.tokens.doc import Doc
 from spacy.tokens.token import Token
 from spacy.util import get_json_validator, validate_json
-from spacy.matcher import Matcher as _Matcher
+from srsly import json_dumps
 
 from ..util import span_idx2i
 from ._schemas import TOKEN_PATTERN_SCHEMA
-from srsly import json_dumps
-
 
 __all__ = ["Matcher"]
 
@@ -210,16 +207,16 @@ class Matcher(object):
             # starts = coordicatch.setdefault(start, {})
             # ends = starts.setdefault(end, [])
             # ends.append((key, catcher, {}))
-            
+
             # keys = ends.setdefault(key, [])
             # keys.append((catcher, {}))
-            
+
             candidate = tokens[start:end]
             if doclen == len(candidate):
                 matcher.add(key, [self._patterns[key][i]])
                 continue
             catcher = self._specs[key][i][0]
-            for s, e in _find_matches(tokens[start: end], catcher, cache):
+            for s, e in _find_matches(tokens[start:end], catcher, cache):
                 matches.append((key, start + s, start + e))
 
             # catcher = self._specs[key][i][0]
@@ -264,6 +261,7 @@ def _find_re_matches(tokens, specs):
                 start, end = span_idx2i(
                     tokens, match.start(), match.end(), maxtlen
                 )
+                # print(spec[1], text[match.start(): match.end()], tokens[start: end])
                 if start == end:
                     continue
                 # if not spec[2]:
@@ -306,6 +304,7 @@ def _find_matches(tokens, coordicatch):
                         token, i, catcher, catchings, cache
                     )
                 )
+
 
 def _find_matches(tokens, catcher, cache):
     catchings = {}
@@ -430,8 +429,8 @@ def _preprocess_pattern(pattern):
 
     return (
         _catcher_from_items(catcheritems),
-        re.compile(tregex, flags=re.U | re.I) if tregex else None,
-        re.compile(lregex, flags=re.U | re.I) if lregex else None,
+        re.compile(tregex, flags=re.U) if tregex else None,
+        re.compile(lregex, flags=re.U) if lregex else None,
     )
 
 
@@ -501,7 +500,7 @@ def _evalfunc_from_predicates(attr, predicates, in_ext=False):
                 return False
             # func = _evalfunc_from_predicate(pred, value, attr, in_ext)
             # if not func(x):
-                # return False
+            # return False
         return True
 
     preds = {**predicates}
@@ -594,7 +593,7 @@ _REGEX_ONE_TOKEN = r"[^ ]+"
 def _regex_from_items(items):
     return (
         # if only about attributes, no regex
-        None # r"[\s\S]+"
+        None  # r"[\s\S]+"
         if not items or all(_REGEX_ONE_TOKEN in r for r in items)
         else _regex_wrap_bounds(r"".join([r for r in items if r]), left=True)
     )
@@ -638,7 +637,7 @@ def _regex_from_content(content, case_insensitive=False, op=None):
 
     if isinstance(content, dict):
         if "REGEX" in content:
-            return content["REGEX"]
+            return r"[^ ]*?" + content["REGEX"]
         if "IN" in content:
             in_op = "IN"
             wrap_in_op = "1"
@@ -653,6 +652,9 @@ def _regex_from_content(content, case_insensitive=False, op=None):
     else:
         regex = re.escape(content)
 
+    if case_insensitive:
+        regex = f"(?i:{regex})"
+
     if op is not None:
         return _regex_wrap_op(op, regex)
 
@@ -666,20 +668,20 @@ def _regex_pipe_terms(terms):
 def _regex_wrap_bounds(text, left=None, right=None):
     return "".join(
         [
-            r"(?:\s*|^)" if left else "",
+            r"(?:\s+|\b|^)" if left else "",
             text,
-            r"(?:\s*|$)" if right else "",
+            r"(?:\s+|\b|$)" if right else "",
         ]
     )
 
 
 _WRAP_OP_LOOKUP = {
-        "*": "(?:{}(?:[^a-zA-Z0-9]+?|$))*",
-        "+": "(?:{}(?:[^a-zA-Z0-9]+?|$))+",
-        "?": "(?:{}(?:[^a-zA-Z0-9]*?|$))?",
-        "!": "(?!{}(?:[^a-zA-Z0-9]+?|$))[^ ]+",
-        "1": "(?:{}(?:[^a-zA-Z0-9]+?|$))",
-    }
+    "*": "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))*",
+    "+": "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))+",
+    "?": "(?:\\b{}(?:[^a-zA-Z0-9]*?|\\b|$))?",
+    "!": "(?!\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))[^ ]+",
+    "1": "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))",
+}
 
 
 def _regex_wrap_op(op, text):

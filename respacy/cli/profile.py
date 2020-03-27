@@ -32,7 +32,7 @@ def matches(matcher, doc):
     count = 0
     for _, s, e in matcher(doc):
         count += 1
-        print(doc[s:e])
+        # print(doc[s:e])
     print(count)
 
 

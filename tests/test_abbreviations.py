@@ -10,7 +10,7 @@ def _get_long_form(nlp, text, short):
     short_start = long_end + short.count("(")
     short_end = short_start + 1
     short_form = doc[short_start:short_end]
-    return find_abbreviation(long_form, short_form)[1]
+    return find_abbreviation(long_form, short_form)[0]
 
 
 @pytest.mark.parametrize(
