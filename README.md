@@ -1,12 +1,12 @@
 # 🌀 RespaCy
 
-This repository contains a set of pipes which exploit and enhance spaCy in matching, labelling and linking textual entities.
+This repository contains a set of pipes which exploit and enhance spaCy in matching, labeling and linking textual entities.
 
 ## Installation
 
-*SOON* - Install package from PyPI:
+*SOON - Install package from PyPI:*
 ```bash
-pip install spacy
+pip install respacy
 ```
 
 Install from GitHub:
@@ -17,14 +17,13 @@ pip install git+https://github.com/erre-quadro/respacy.git
 ## Features
 
 ### AbbreviationDetector
-A detector of abbreviations based on the scispaCy [AbbreviationDetector](https://github.com/allenai/scispacy#abbreviationdetector), enhanced to recognize abbreviations not in brackets and to prioritize acronyms.
+A revisited version of the scispaCy [AbbreviationDetector](https://github.com/allenai/scispacy#abbreviationdetector), enhanced to recognize better abbreviations and acronyms, as well as to relate them to their extended form in a more detailed way.
 
-### REMatcher
-A pattern matching detector based on the logic of the spaCy [Matcher](https://spacy.io/usage/rule-based-matching), enhanced with a matching multilayer which use the *RegEx* power to increase performance and patterns expressiveness.
+### Labeler
+A *Matcher* exploitation for labeling text chunks based on patterns. 
 
-
-### Labeller
-A *REMatcher* exploitation for labelling text chunks based on patterns.
+### Matcher
+A pattern matching detector based on the logic of the spaCy [Matcher](https://spacy.io/usage/rule-based-matching), enhanced with a matching layer which use the *RegEx* power to increase performance and patterns expressiveness.
 
 ## Benchmark
 

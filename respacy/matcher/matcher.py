@@ -261,7 +261,6 @@ def _find_re_matches(tokens, specs):
                 start, end = span_idx2i(
                     tokens, match.start(), match.end(), maxtlen
                 )
-                # print(spec[1], text[match.start(): match.end()], tokens[start: end])
                 if start == end:
                     continue
                 # if not spec[2]:
@@ -286,31 +285,30 @@ def _find_re_matches(tokens, specs):
                     yield (key, i, start, end)
 
 
-def _find_matches(tokens, coordicatch):
-    cache = {}
-    active_catchers = {}
-    for i, token in enumerate(tokens):
-        if i in coordicatch:
-            active_catchers.update(coordicatch[i])
-        if i in active_catchers:
-            del active_catchers[i]
-        if not active_catchers:
-            continue
-        for catchers in active_catchers.values():
-            for key, catcher, catchings in catchers:
-                yield from (
-                    (key, start, end)
-                    for start, end in _catch_in_token(
-                        token, i, catcher, catchings, cache
-                    )
-                )
+# def _find_matches(tokens, coordicatch):
+#     cache = {}
+#     active_catchers = {}
+#     for i, token in enumerate(tokens):
+#         if i in coordicatch:
+#             active_catchers.update(coordicatch[i])
+#         if i in active_catchers:
+#             del active_catchers[i]
+#         if not active_catchers:
+#             continue
+#         for catchers in active_catchers.values():
+#             for key, catcher, catchings in catchers:
+#                 yield from (
+#                     (key, start, end)
+#                     for start, end in _catch_in_token(
+#                         token, i, catcher, catchings, cache
+#                     )
+#                 )
 
 
 def _find_matches(tokens, catcher, cache):
     catchings = {}
     for i, token in enumerate(tokens):
         yield from _catch_in_token(token, i, catcher, catchings, cache)
-
 
 ONE = "1"
 ONE_PLUS = "+"
@@ -414,8 +412,8 @@ def _preprocess_pattern(pattern):
                     Errors.E153.format(vtype=type(value).__name__)
                 )
 
-        op = tokenspec["OP"] if "OP" in tokenspec else ONE
         cf = _catcherfunc_from_tokenspec(tokenspec)
+        op = tokenspec["OP"] if "OP" in tokenspec else ONE
         catcheritems.append((op, cf))
 
         tregex = _regext_from_tokenspec(tokenspec)
@@ -442,10 +440,10 @@ def _catcher_from_items(items):
         keys = ", ".join(good_qs)
         raise ValueError(Errors.E011.format(op=q, opts=keys))
     qsep = (ONE, ONE_PLUS, ZERO)
-    head = (i for i, e in enumerate(items) if e[0] in qsep)
-    head_end = next(head)
-    tail = (i for i, e in enumerate(reversed(items)) if e[0] in qsep)
-    tail_start = len(items) - next(tail)
+    head = [i for i, e in enumerate(items) if e[0] in qsep]
+    head_end = 0 if not head else head[0]
+    tail = [i for i, e in enumerate(reversed(items)) if e[0] in qsep]
+    tail_start = len(items) - (len(items) - 1 if not tail else tail[0])
     return (items, head_end, tail_start)
 
 
@@ -453,13 +451,14 @@ def _catcherfunc_from_tokenspec(tokenspec):
     if not tokenspec:
         return lambda x, _: True
     funcs = []
-    for attr, value in tokenspec.items():
+    for attr, value in {**tokenspec}.items():
         key = json_dumps({attr: value})
         if attr == "_":
             if not isinstance(value, dict):
                 raise ValueError(Errors.E154.format())
             funcs.append((key, _evalfunc_from_extensions(value)))
         elif attr == "REGEX":
+            tokenspec["OP"] = ONE_PLUS
             funcs.append((key, lambda x, _: True))
         elif attr != "OP":
             funcs.append((key, _evalfunc_from_attr(attr, value)))
@@ -637,7 +636,10 @@ def _regex_from_content(content, case_insensitive=False, op=None):
 
     if isinstance(content, dict):
         if "REGEX" in content:
-            return r"[^ ]*?" + content["REGEX"]
+            regex = r"[^ ]*?" + content["REGEX"]
+            if case_insensitive:
+                regex = f"(?i:{regex})"
+            return regex
         if "IN" in content:
             in_op = "IN"
             wrap_in_op = "1"
@@ -676,11 +678,11 @@ def _regex_wrap_bounds(text, left=None, right=None):
 
 
 _WRAP_OP_LOOKUP = {
-    "*": "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))*",
-    "+": "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))+",
-    "?": "(?:\\b{}(?:[^a-zA-Z0-9]*?|\\b|$))?",
-    "!": "(?!\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))[^ ]+",
-    "1": "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))",
+    ONE: "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))",
+    ONE_PLUS: "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))+",
+    ZERO: "(?!\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))[^ ]+",
+    ZERO_ONE: "(?:\\b{}(?:[^a-zA-Z0-9]*?|\\b|$))?",
+    ZERO_PLUS: "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))*",
 }
 
 
