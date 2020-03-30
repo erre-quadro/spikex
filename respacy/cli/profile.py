@@ -33,7 +33,7 @@ def matches(matcher, doc):
     for _, s, e in matcher(doc):
         count += 1
         # print(doc[s:e])
-    msg("Total matches", count)
+    msg.text("Total matches", count)
 
 
 def patterns(patterns_path):

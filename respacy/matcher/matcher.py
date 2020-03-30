@@ -678,11 +678,11 @@ def _regex_wrap_bounds(text, left=None, right=None):
 
 
 _WRAP_OP_LOOKUP = {
-    ONE: "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))",
-    ONE_PLUS: "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))+",
-    ZERO: "(?!\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))[^ ]+",
-    ZERO_ONE: "(?:\\b{}(?:[^a-zA-Z0-9]*?|\\b|$))?",
-    ZERO_PLUS: "(?:\\b{}(?:[^a-zA-Z0-9]+?|\\b|$))*",
+    ONE: "(?:{}(?:[^a-zA-Z0-9]+?|\\b|$))",
+    ONE_PLUS: "(?:{}(?:[^a-zA-Z0-9]+?|\\b|$))+",
+    ZERO: "(?!{}(?:[^a-zA-Z0-9]+?|\\b|$))[^ ]+",
+    ZERO_ONE: "(?:{}(?:[^a-zA-Z0-9]*?|\\b|$))?",
+    ZERO_PLUS: "(?:{}(?:[^a-zA-Z0-9]+?|\\b|$))*",
 }
 
 
