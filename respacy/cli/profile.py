@@ -15,9 +15,9 @@ from ..matcher import Matcher
 def profile(patterns_path, matcher_type: str = None):
     sample_doc = doc()
     matcher = (
-        Matcher(sample_doc.vocab)
-        if matcher_type == "respacy"
-        else _Matcher(sample_doc.vocab)
+        _Matcher(sample_doc.vocab)
+        if matcher_type == "spacy"
+        else Matcher(sample_doc.vocab)
     )
     matcher.add("Profile", patterns(patterns_path))
     cProfile.runctx(
@@ -33,7 +33,7 @@ def matches(matcher, doc):
     for _, s, e in matcher(doc):
         count += 1
         # print(doc[s:e])
-    print(count)
+    msg("Total matches", count)
 
 
 def patterns(patterns_path):
