@@ -310,6 +310,7 @@ def _find_matches(tokens, catcher, cache):
     for i, token in enumerate(tokens):
         yield from _catch_in_token(token, i, catcher, catchings, cache)
 
+
 ONE = "1"
 ONE_PLUS = "+"
 ZERO = "!"

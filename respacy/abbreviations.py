@@ -29,8 +29,12 @@ class AbbreviationDetector:
             "abbreviations",
             [
                 # Pattern for abbreviations not enclosed in brackets
-                [{"IS_UPPER": True, "LENGTH": {">": 1}},],
+                # here we limit to alpha chars only as it could
+                # get many exceptions
+                [{"IS_ALPHA": True, "IS_UPPER": True, "LENGTH": {">": 1}}],
                 # Pattern for abbreviations enclosed in brackets
+                # here we try to allow non alpha chars too as it is
+                # the more likely standard way to introduce an abbreviation
                 [
                     {"TEXT": {"IN": ["(", "["]}},
                     {"OP": "+"},
@@ -84,7 +88,7 @@ class AbbreviationDetector:
             long_form, short_form = find_abbreviation(
                 long_candidate, short_candidate
             )
-            # We look for abbreviations, so...
+            # We look for abbreviations, so...
             if short_form is None:
                 continue
             if long_form is None:
@@ -232,7 +236,18 @@ def _find_abbreviation(
         short_index -= 1
         if not is_starting_char:
             has_internal_match = True
-    if short_index >= 0:
+    # In case it didn't end at the starting
+    # of a word, move it a step ahead
+    if long_index >= 0 and not long_form[long_index].isalnum():
+        long_index += 1
+    # In case the abbreviation doesn't fully match
+    # or it doesn't match from a starting char
+    # finding fails
+    if (
+        short_index >= 0
+        or long_index > 0
+        and long_form[long_index - 1].isalnum()
+    ):
         return
     long_start = max(long_index, 0)
     long_end = long_index_end + 1
