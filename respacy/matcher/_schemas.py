@@ -149,7 +149,7 @@ TOKEN_PATTERN_SCHEMA = {
                 "$ref": "#/definitions/boolean_value",
             },
             "IS_TITLE": {
-                "title": "Token  is titlecase",
+                "title": "Token is titlecase",
                 "$ref": "#/definitions/boolean_value",
             },
             "IS_PUNCT": {

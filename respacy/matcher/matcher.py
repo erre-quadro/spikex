@@ -587,7 +587,7 @@ def _get_token_attr(token: Token, attr: str):
     return False
 
 
-_REGEX_ONE_TOKEN = r"[^ ]+"
+_REGEX_ONE_TOKEN = r"(?>[^ ])+"
 
 
 def _regex_from_items(items):
@@ -665,15 +665,15 @@ def _regex_from_content(content, case_insensitive=False, op=None):
 
 
 def _regex_pipe_terms(terms):
-    return r"".join([r"(?:", r"|".join(terms), r")"])
+    return r"".join([r"(?>", r"|".join(terms), r")"])
 
 
 def _regex_wrap_bounds(text, left=None, right=None):
     return "".join(
         [
-            r"(?:\s+|\b|^)" if left else "",
+            r"(?>\s+|\b|^)" if left else "",
             text,
-            r"(?:\s+|\b|$)" if right else "",
+            r"(?>\s+|\b|$)" if right else "",
         ]
     )
 

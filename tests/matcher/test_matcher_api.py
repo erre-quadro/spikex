@@ -2,7 +2,7 @@ import pytest
 from mock import Mock
 from spacy.tokens import Doc, Token
 
-from respacy.matcher import Matcher
+from respacy.matcher._matcher import Matcher
 
 
 @pytest.fixture
@@ -172,10 +172,8 @@ def test_matcher_any_token_operator(en_vocab):
     matcher.add("TEST", [[{"ORTH": "test"}, {"OP": "*"}]])
     doc = Doc(en_vocab, words=["test", "hello", "world"])
     matches = [doc[start:end].text for _, start, end in matcher(doc)]
-    assert len(matches) == 3
-    assert matches[0] == "test"
-    assert matches[1] == "test hello"
-    assert matches[2] == "test hello world"
+    assert len(matches) == 1
+    assert matches[0] == "test hello world"
 
 
 def test_matcher_extension_attribute(en_vocab):
@@ -210,7 +208,7 @@ def test_matcher_set_value_operator(en_vocab):
     matcher.add("DET_HOUSE", [pattern])
     doc = Doc(en_vocab, words=["In", "a", "house"])
     matches = matcher(doc)
-    assert len(matches) == 2
+    assert len(matches) == 1
     doc = Doc(en_vocab, words=["my", "house"])
     matches = matcher(doc)
     assert len(matches) == 1
@@ -267,14 +265,25 @@ def test_matcher_regex_shape(en_vocab):
     assert len(matches) == 0
 
 
-def test_matcher_compare_length(en_vocab):
+@pytest.mark.parametrize(
+    "cmp, bad",
+    [
+        ("==", ["a", "aaa"]),
+        ("!=", ["aa"]),
+        (">=", ["a"]),
+        ("<=", ["aaa"]),
+        (">", ["a", "aa"]),
+        ("<", ["aa", "aaa"]),
+    ],
+)
+def test_matcher_compare_length(en_vocab, cmp, bad):
     matcher = Matcher(en_vocab)
-    pattern = [{"LENGTH": {">=": 2}}]
+    pattern = [{"LENGTH": {cmp: 2}}]
     matcher.add("LENGTH_COMPARE", [pattern])
     doc = Doc(en_vocab, words=["a", "aa", "aaa"])
     matches = matcher(doc)
-    assert len(matches) == 2
-    doc = Doc(en_vocab, words=["a"])
+    assert len(matches) == len(doc) - len(bad)
+    doc = Doc(en_vocab, words=bad)
     matches = matcher(doc)
     assert len(matches) == 0
 
