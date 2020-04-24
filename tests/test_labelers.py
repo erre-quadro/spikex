@@ -1,6 +1,6 @@
 import pytest
 
-from respacy.labeler import Labeler
+from respacy.labelers import PatternLabeler
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def labelings():
 
 @pytest.fixture
 def labeler(labelings, nlp):
-    labeler = Labeler(nlp.vocab)
+    labeler = PatternLabeler(nlp.vocab)
     for labeling in labelings:
         labeler.add(**labeling)
     return labeler
@@ -34,3 +34,4 @@ def test_token_labels(labeler, nlp):
     assert len(doc[-1]._.labels) == 1
     assert doc[0]._.labels[0] == "NO_TEST"
     assert doc[-1]._.labels[0] == "TEST"
+

@@ -15,7 +15,7 @@ requirements = [
     "regex",
     "spacy>=2.2.2",
     "wasabi",
-    "typer"
+    "typer",
 ]
 
 setup_requirements = ["pytest-runner"]

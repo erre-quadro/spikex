@@ -228,9 +228,9 @@ def find_matches(tokens, specs):
                     start_idx = i2idx[candidate[0]]
                     end_idx = i2idx[candidate[1]]
                     curr_text = text[start_idx:end_idx]
-                    print(respec, curr_text)
+                    # print(respec, curr_text)
                     for match in respec.finditer(curr_text):
-                        print(respec, match)
+                        # print(respec, match)
                         start = start_idx + match.start()
                         if text[start] == " ":
                             start += 1
@@ -423,7 +423,13 @@ def _predicate2regex(_, argument):
 
 
 def _predicate2setmember(predicate, argument):
-    pipe = argument[0] if len(argument) == 1 else _re_pipe(argument)
+    pipe = (
+        re.escape(argument[0])
+        if len(argument) == 1
+        else r"".join(
+            [r"(?:", r"|".join((re.escape(term) for term in argument)), r")"]
+        )
+    )
     if predicate == "NOT_IN":
         return _re_wrapop("!", pipe)
     return pipe
@@ -433,14 +439,9 @@ def _predicate2comparison(predicate, argument):
     return _re_toklen(predicate, argument)
 
 
-def _re_pipe(terms):
-    pipe = r"|".join((re.escape(term) for term in terms))
-    return r"".join([r"(?:", pipe, r")"])
-
-
 _WRAPOP_LOOKUP = {
     "1": "({})",
-    "+": "({}\\W*)+",
+    "+": "({}\\W*?)+",
     "!": "(?!{})([^ ]+)",
     "?": "({})?",
     "*": "({}\\W*)*",

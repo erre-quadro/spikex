@@ -24,9 +24,14 @@ def profile(patterns_path, matcher: str = None):
     #     [{"LOWER": {"IN": ["tether"]}}, {"LOWER": {"IN": ["hinge"]}, "POS": {"IN": ["NOUN"]}}]
     # ]
 
-    pattern = [{"POS": {"NOT_IN": ["NOUN", "ADJ", "ADV"]}}, {"LOWER": {"IN": ["means"]}, "POS": {"IN": ["NOUN"]}}, {"LEMMA": {"IN": ["for", "to"]}}, {"POS": {"IN": ["NOUN", "ADJ", "ADV", "VERB"]}}]
+    # pattern = [
+    #     {"POS": {"NOT_IN": ["NOUN", "ADJ", "ADV"]}},
+    #     {"LOWER": {"IN": ["means"]}, "POS": {"IN": ["NOUN"]}},
+    #     {"LEMMA": {"IN": ["for", "to"]}},
+    #     {"POS": {"IN": ["NOUN", "ADJ", "ADV", "VERB"]}},
+    # ]
 
-    matcher.add("Profile", [pattern])# patterns(patterns_path))
+    matcher.add("Profile", patterns(patterns_path))
     cProfile.runctx(
         "matches(matcher, sample_doc)", globals(), locals(), "Profile.prof"
     )

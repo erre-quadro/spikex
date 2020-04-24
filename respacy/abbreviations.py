@@ -1,6 +1,6 @@
-from typing import List, Optional, Set, Tuple, Union
+from typing import Iterable, Optional, Set, Tuple, Union
 
-from spacy.matcher import Matcher
+from respacy.matcher import Matcher
 from spacy.tokens import Doc, Span
 
 from .util import span_idx2i
@@ -59,6 +59,8 @@ class AbbreviationDetector:
 
     def __call__(self, doc: Doc) -> Doc:
         matches = self.matcher(doc)
+        for _, s, e in matches:
+            print(doc[s: e])
         matches_no_punct = set(
             [
                 (
@@ -78,8 +80,8 @@ class AbbreviationDetector:
         return doc
 
     def find_matches_for(
-        self, filtered: List[Tuple[Span, Span]], doc: Doc
-    ) -> List[Tuple[Span, Set[Span]]]:
+        self, filtered: Iterable[Tuple[Span, Span]], doc: Doc
+    ) -> Iterable[Tuple[Span, Set[Span]]]:
         matches = []
         seen = {}
         start_seen = {}
@@ -255,8 +257,8 @@ def _find_abbreviation(
 
 
 def _filter_matches(
-    matcher_output: List[Tuple[int, int, int]], doc: Doc
-) -> List[Tuple[Span, Span]]:
+    matcher_output: Iterable[Tuple[int, int, int]], doc: Doc
+) -> Iterable[Tuple[Span, Span]]:
     # Filter into two cases:
     # 1. <Short Form> ( <Long Form> )
     # 2. <Long Form> (<Short Form>) [this case is most common].

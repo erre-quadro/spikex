@@ -31,7 +31,7 @@ class PhraseDetector:
     def __call__(self, doc: Doc):
         phrases = []
         good_start = -1
-        for key, start, end in self._matcher(doc, best_sort=True):
+        for key, start, end in self._matcher(doc):
             if good_start >= end:
                 continue
             good_start = end
