@@ -4,7 +4,7 @@ import pytest
 from spacy.lang.en import English
 from spacy.tokens import Doc, Span
 
-from respacy.matcher._matcher import Matcher
+from respacy.matcher import Matcher
 
 pattern1 = [{"ORTH": "A", "OP": "1"}, {"ORTH": "A", "OP": "*"}]
 pattern2 = [{"ORTH": "A", "OP": "*"}, {"ORTH": "A", "OP": "1"}]

@@ -2,7 +2,7 @@ import pytest
 from mock import Mock
 from spacy.tokens import Doc, Token
 
-from respacy.matcher._matcher import Matcher
+from respacy.matcher import Matcher
 
 
 @pytest.fixture

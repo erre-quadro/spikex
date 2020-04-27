@@ -1,4 +1,5 @@
 from spacy.tokens import Doc, Span, Token
+
 from .matcher import Matcher
 
 

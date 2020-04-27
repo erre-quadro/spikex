@@ -1,7 +1,8 @@
 from typing import Iterable, Optional, Set, Tuple, Union
 
-from respacy.matcher import Matcher
 from spacy.tokens import Doc, Span
+
+from respacy.matcher import Matcher
 
 from .util import span_idx2i
 
@@ -60,7 +61,7 @@ class AbbreviationDetector:
     def __call__(self, doc: Doc) -> Doc:
         matches = self.matcher(doc)
         for _, s, e in matches:
-            print(doc[s: e])
+            print(doc[s:e])
         matches_no_punct = set(
             [
                 (

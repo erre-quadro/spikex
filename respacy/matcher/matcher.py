@@ -1,15 +1,9 @@
-from functools import lru_cache
-
 import regex as re
 from spacy.attrs import DEP, LEMMA, POS, TAG, intify_attr
 from spacy.errors import Errors, MatchPatternError
-from spacy.matcher import Matcher as _Matcher
-from spacy.tokens.doc import Doc
-from spacy.tokens.token import Token
+from spacy.tokens import Doc, Token
 from spacy.util import get_json_validator, validate_json
-from srsly import json_dumps
 
-from ..util import span_idx2i
 from ._schemas import TOKEN_PATTERN_SCHEMA
 
 __all__ = ["Matcher"]
@@ -78,7 +72,8 @@ class Matcher(object):
 
     def get(self, key: str, default=None):
         """
-        Retrieve the pattern stored for a key.
+        Retrieve the pattern stored for a key,
+        or default if it does not exist.
 
         Parameters
         ----------
@@ -138,13 +133,11 @@ class Matcher(object):
                 errors[i] = validate_json(pattern, self.validator)
         if any(err for err in errors.values()):
             raise MatchPatternError(key, errors)
-
         key = self._normalize_key(key)
-
         self._specs.setdefault(key, [])
         for pattern in patterns:
-            spec = _preprocess_pattern(pattern)
-            self._specs[key].append(spec)
+            patternspec = _preprocess_pattern(pattern)
+            self._specs[key].append(patternspec)
             for token in pattern:
                 for attr in token:
                     iattr = intify_attr(attr)
@@ -171,7 +164,7 @@ class Matcher(object):
         self._patterns.pop(key)
         self._callbacks.pop(key)
 
-    def __call__(self, doc: Doc, best_sort: bool = False):
+    def __call__(self, doc: Doc):
         """
         Find all token sequences matching the supplied patterns.
 
@@ -196,46 +189,18 @@ class Matcher(object):
         if DEP in self._seen_attrs and not doc.is_parsed:
             raise ValueError(Errors.E156.format())
 
-        cache = {}
-        coordicatch = {}
         matches = []
-        matcher = _Matcher(self.vocab)
+        seen = set()
         tokens = [token for token in doc]
-        doclen = len(tokens)
-
-        for key, i, start, end in _find_re_matches(tokens, self._specs):
-            # starts = coordicatch.setdefault(start, {})
-            # ends = starts.setdefault(end, [])
-            # ends.append((key, catcher, {}))
-
-            # keys = ends.setdefault(key, [])
-            # keys.append((catcher, {}))
-
-            candidate = tokens[start:end]
-            if doclen == len(candidate):
-                matcher.add(key, [self._patterns[key][i]])
+        for match in find_matches(tokens, self._specs):
+            if match in seen:
                 continue
-            catcher = self._specs[key][i][0]
-            for s, e in _find_matches(tokens[start:end], catcher, cache):
-                matches.append((key, start + s, start + e))
-
-            # catcher = self._specs[key][i][0]
-            # for s, e in catcher(candidate):
-            #     matches.append((norm_key, start + s, start + e))
-
-        for key, start, end in matcher(doc):
-            matches.append((key, start, end))
-
-        # matches = [match for match in _find_matches(tokens, coordicatch)]
-
-        if best_sort:
-            matches.sort(key=lambda x: (x[1], -x[2], x[0]))
-
+            seen.add(match)
+            matches.append(match)
         for i, match in enumerate(matches):
             on_match = self._callbacks.get(match[0], None)
             if on_match is not None:
                 on_match(self, doc, i, matches)
-
         return matches
 
     def _normalize_key(self, key):
@@ -248,159 +213,85 @@ class Matcher(object):
         )
 
 
-def _find_re_matches(tokens, specs):
-    text = "".join([t.text_with_ws for t in tokens])
-    maxdlen = len(tokens)
-    maxtlen = len(text)
-    for key, values in specs.items():
-        for i, spec in enumerate(values):
-            if not spec[1]:
-                yield (key, i, 0, maxdlen)
-                continue
-            for match in spec[1].finditer(text, concurrent=True):
-                start, end = span_idx2i(
-                    tokens, match.start(), match.end(), maxtlen
-                )
-                if start == end:
-                    continue
-                # if not spec[2]:
-                #     yield (key, i, start, end)
-                # candidate = tokens[start:end]
-                # lemmas = " ".join([t.lemma_ for t in candidate])
-                # maxllen = len(lemmas)
-                # for match in spec[2].finditer(lemmas):
-                #     gap = lemmas[:match.start()].count(" ")
-                #     s = gap + 1
-                #     e = gap + lemmas[match.start(): match.end()].count(" ")
-                #     # s, e = span_idx2i(
-                #     #     candidate, match.start(), match.end(), maxllen
-                #     # )
-                #     print(spec[2], lemmas[match.start(): match.end()], candidate[s: e])
-                #     if s == e:
-                #         continue
-                #     yield (key, i, start + s, start + e)
-                if not spec[2] or spec[2].search(
-                    " ".join([t.lemma_ for t in tokens[start:end]])
-                ):
-                    yield (key, i, start, end)
+def find_matches(tokens, specs):
+    attrs_map = {}
+    for key, patternspecs in specs.items():
+        for patternspec in patternspecs:
+            candidates = [(0, len(tokens))]
+            for attr, (respec, is_extension) in patternspec.items():
+                if attr not in attrs_map:
+                    attrs_map[attr] = _attr2map(attr, tokens, is_extension)
+                i2idx, idx2i, text = attrs_map[attr]
+                maxlen = len(text)
+                new_candidates = []
+                for candidate in candidates:
+                    start_idx = i2idx[candidate[0]]
+                    end_idx = i2idx[candidate[1]]
+                    curr_text = text[start_idx:end_idx]
+                    for match in respec.finditer(curr_text, overlapped=True):
+                        start = start_idx + match.start()
+                        if text[start] == " ":
+                            start += 1
+                        if start > 0 and text[start - 1] != " ":
+                            start = text.find(" ", start) + 1
+                        end = start_idx + match.end()
+                        if end < maxlen and text[end] == " ":
+                            end += 1
+                        if end > 0 and end < maxlen and text[end - 1] != " ":
+                            end = text.find(" ", end) + 1
+                            if end == 0:
+                                end = maxlen
+                        start_i = idx2i[start]
+                        end_i = idx2i[end]
+                        if (
+                            new_candidates
+                            and new_candidates[-1][1] == end_i
+                            and new_candidates[-1][0] < start_i
+                        ):
+                            continue
+                        new_candidates.append((start_i, end_i))
+                candidates = new_candidates
+            yield from (
+                (key, candidate[0], candidate[1]) for candidate in candidates
+            )
 
 
-# def _find_matches(tokens, coordicatch):
-#     cache = {}
-#     active_catchers = {}
-#     for i, token in enumerate(tokens):
-#         if i in coordicatch:
-#             active_catchers.update(coordicatch[i])
-#         if i in active_catchers:
-#             del active_catchers[i]
-#         if not active_catchers:
-#             continue
-#         for catchers in active_catchers.values():
-#             for key, catcher, catchings in catchers:
-#                 yield from (
-#                     (key, start, end)
-#                     for start, end in _catch_in_token(
-#                         token, i, catcher, catchings, cache
-#                     )
-#                 )
-
-
-def _find_matches(tokens, catcher, cache):
-    catchings = {}
+def _attr2map(attr, tokens, is_extension):
+    i2idx = {}
+    idx2i = {}
+    text_tokens = []
+    curr_length = 0
+    nspaces = 0
     for i, token in enumerate(tokens):
-        yield from _catch_in_token(token, i, catcher, catchings, cache)
-
-
-ONE = "1"
-ONE_PLUS = "+"
-ZERO = "!"
-ZERO_ONE = "?"
-ZERO_PLUS = "*"
-
-
-def _catch_in_token(token, i, catcher, catchings, cache):
-    c = 0
-    new_catchings = {}
-    items = catcher[0]
-    head_end = catcher[1]
-    tail_start = catcher[2]
-    maxclen = len(items) - 1
-    for c in range(len(items)):
-        # if head ended
-        # check already open catchings only
-        if c > head_end and c not in catchings:
-            continue
-        op, cf = items[c]
-        catch = {}
-        if c in catchings:
-            catch = catchings[c]
-            del catchings[c]
-        if not cf(token, cache):
-            if catch and op not in (ONE, ZERO):
-                next_c = c + 1
-                # nothing else to check
-                if next_c > maxclen:
-                    continue
-                # if current catch successed at least once
-                # next catch can be checked on same token
-                if 1 in catch and catch[1]:
-                    catchings.setdefault(next_c, {0: {}, 1: {}})
-                    catchings[next_c][0].update(catch[1])
-                # for `?` and `*`, next catch on same token can
-                # be checked even without any previous success
-                if op in (ZERO_ONE, ZERO_PLUS) and 0 in catch and catch[0]:
-                    catchings.setdefault(next_c, {0: {}, 1: {}})
-                    catchings[next_c][0].update(catch[0])
-        else:
-            if not catch:
-                catch = {0: {}, 1: {}}
-            if not catch[0] and not catch[1] or c <= head_end:
-                catch[1].setdefault(i)
-            catch[1].update(catch[0])
-            # for `*` and `+`, keep checking same
-            # catch saving previous good starts
-            if op in (ONE_PLUS, ZERO_PLUS):
-                catchings.setdefault(c, {0: {}, 1: {}})
-                catchings[c][1] = catch[1]
-            next_c = c + 1
-            # if in tail or at the end, it is good to match
-            if next_c >= tail_start or next_c > maxclen:
-                yield from ((s, i + 1) for s in catch[1])
-                if next_c > maxclen:
-                    continue
-            # next catch can be checked on next token
-            new_catchings.setdefault(next_c, {0: {}, 1: {}})
-            new_catchings[next_c][0].update(catch[1])
-            # for `?` and `*`, next catch
-            # can be checked on same token
-            if op in (ZERO_ONE, ZERO_PLUS):
-                catchings.setdefault(next_c, {0: {}, 1: {}})
-                catchings[next_c][0].update(catch[0])
-
-    catchings.update(new_catchings)
+        value = str(
+            token._.get(attr)
+            if is_extension
+            else _get_right_token_attr(token, attr)
+        )
+        text_tokens.append(value)
+        idx = curr_length + i
+        i2idx[i] = idx
+        idx2i[idx] = i
+        curr_length += len(value)
+        nspaces = i
+    curr_length += nspaces
+    i2idx[len(tokens)] = curr_length
+    idx2i[curr_length] = len(tokens)
+    return (i2idx, idx2i, " ".join(text_tokens))
 
 
 def _preprocess_pattern(pattern):
-
-    retextitems = []
-    relemmaitems = []
-    catcheritems = []
-
-    for i, tokenspec in enumerate(pattern):
-
+    attrspecs = {}
+    for tokenspec in pattern:
         if not isinstance(tokenspec, dict):
             raise ValueError(Errors.E154.format())
         for attr, value in {**tokenspec}.items():
-            # normalize case
+            # normalize attributes
             if attr.islower():
-                tokenspec[attr.upper()] = value
-                del tokenspec[attr]
-            # fix specs
-            for fix in [("TEXT", "ORTH"), ("IS_SENT_START", "SENT_START")]:
-                if attr != fix[0]:
-                    continue
-                tokenspec[fix[1]] = value
-                del tokenspec[fix[0]]
+                old_attr = attr
+                attr = attr.upper()
+                tokenspec[attr] = value
+                del tokenspec[old_attr]
             if attr not in TOKEN_PATTERN_SCHEMA["items"]["properties"]:
                 raise ValueError(Errors.E152.format(attr=attr))
             if not (
@@ -412,134 +303,189 @@ def _preprocess_pattern(pattern):
                 raise ValueError(
                     Errors.E153.format(vtype=type(value).__name__)
                 )
-
-        cf = _catcherfunc_from_tokenspec(tokenspec)
-        op = tokenspec["OP"] if "OP" in tokenspec else ONE
-        catcheritems.append((op, cf))
-
-        tregex = _regext_from_tokenspec(tokenspec)
-        retextitems.append(tregex)
-
-        lregex = _regexl_from_tokenspec(tokenspec)
-        relemmaitems.append(lregex)
-
-    tregex = _regex_from_items(retextitems)
-    lregex = _regex_from_items(relemmaitems)
-
-    return (
-        _catcher_from_items(catcheritems),
-        re.compile(tregex, flags=re.U) if tregex else None,
-        re.compile(lregex, flags=re.U) if lregex else None,
-    )
-
-
-def _catcher_from_items(items):
-    good_qs = (ONE, ONE_PLUS, ZERO, ZERO_ONE, ZERO_PLUS)
-    for q, _ in items:
-        if q is None or q in good_qs:
-            continue
-        keys = ", ".join(good_qs)
-        raise ValueError(Errors.E011.format(op=q, opts=keys))
-    qsep = (ONE, ONE_PLUS, ZERO)
-    head = [i for i, e in enumerate(items) if e[0] in qsep]
-    head_end = 0 if not head else head[0]
-    tail = [i for i, e in enumerate(reversed(items)) if e[0] in qsep]
-    tail_start = len(items) - (len(items) - 1 if not tail else tail[0])
-    return (items, head_end, tail_start)
-
-
-def _catcherfunc_from_tokenspec(tokenspec):
-    if not tokenspec:
-        return lambda x, _: True
-    funcs = []
-    for attr, value in {**tokenspec}.items():
-        key = json_dumps({attr: value})
-        if attr == "_":
-            if not isinstance(value, dict):
+            if attr == "OP":
+                continue
+            if attr == "_" and not isinstance(value, dict):
                 raise ValueError(Errors.E154.format())
-            funcs.append((key, _evalfunc_from_extensions(value)))
-        elif attr == "REGEX":
-            tokenspec["OP"] = ONE_PLUS
-            funcs.append((key, lambda x, _: True))
-        elif attr != "OP":
-            funcs.append((key, _evalfunc_from_attr(attr, value)))
-
-    def evalfunc(x, bcmp, cache):
-        for k, f in funcs:
-            if k not in cache:
-                cache.setdefault(k, {})
-            res = f(x, cache[k]) == bcmp
-            if not res:
-                return False
-        return True
-
-    bcmp = "OP" not in tokenspec or tokenspec["OP"] != "!"
-    return lambda x, cache: evalfunc(x, bcmp, cache)
+            if attr == "REGEX":
+                attr = "TEXT"
+            new_attrs = value.keys() if attr == "_" else [attr]
+            for new_attr in new_attrs:
+                attrspecs[new_attr] = ([(None, True)] * len(pattern), False)
+    for i, tokenspec in enumerate(pattern):
+        new_attrspecs = _tokenspec2attrspecs(tokenspec)
+        _align_attrspecs(i, attrspecs, new_attrspecs)
+    return _attrspecs2patternspec(attrspecs)
 
 
-def _evalfunc_from_attr(attr, value):
-    if isinstance(value, dict):
-        return _evalfunc_from_predicates(attr, value)
-    return lambda x, _: value == _get_token_attr(x, attr)
+_REGEX_ONE_TOKEN = r"[^ ]+"
+_REGEX_TOKEN_START = r"(?:[ ]|^)"
+_REGEX_TOKEN_DELIM = "(?({})(?:[ ]|^|$)|)"
 
 
-def _evalfunc_from_extensions(extensions):
-    if not isinstance(extensions, dict):
+def _attrspecs2patternspec(attrspecs):
+    patternspec = {}
+    for attr, (respecs, is_extension) in attrspecs.items():
+        regex = "".join(
+            [
+                respec
+                if not delim
+                else (respec + _REGEX_TOKEN_DELIM.format(i + 1))
+                for i, (respec, delim) in enumerate(respecs)
+            ]
+        )
+        regex = "".join([_REGEX_TOKEN_START, regex])
+        flags = re.U
+        if attr in ["LENGTH", "LOWER"]:
+            flags |= re.I
+        patternspec[attr] = (re.compile(regex, flags=flags), is_extension)
+    return {
+        k: v
+        for k, v in sorted(
+            patternspec.items(),
+            key=lambda x: x[0] not in ["LEMMA", "LOWER", "TEXT"],
+        )
+    }
+
+
+def _align_attrspecs(i, attrspecs, new_attrspecs):
+    for (
+        new_attr,
+        (new_respec, op, new_is_extension, delim),
+    ) in new_attrspecs.items():
+        for attr, (respecs, _) in {**attrspecs}.items():
+            if respecs[i][0] is not None and attr != new_attr:
+                continue
+            if attr == new_attr:
+                respecs[i] = (new_respec or _REGEX_ONE_TOKEN, delim)
+                attrspecs[attr] = (respecs, new_is_extension)
+            else:
+                respecs[i] = (
+                    _re_wrapop(op, _REGEX_ONE_TOKEN, op == "+"),
+                    delim,
+                )
+
+
+def _tokenspec2attrspecs(tokenspec):
+    if "REGEX" in tokenspec:
+        return {
+            "TEXT": (_re_wrapop("1", tokenspec["REGEX"]), None, None, None)
+        }
+    if not tokenspec:
+        return {None: (None, "1", None, True)}
+    if "OP" in tokenspec and len(tokenspec) == 1:
+        op = tokenspec["OP"]
+        return {None: (None, op, None, op in ["1", "!"])}
+    respecs = {
+        **_tokenspec2extenspecs(tokenspec),
+        **_tokenspec2nativspecs(tokenspec),
+    }
+    attr_op = tokenspec["OP"] if "OP" in tokenspec else "1"
+    tok_op = attr_op or "1" if attr_op != "!" else "1"
+    delim = attr_op in ["1", "!"]
+    return {
+        attr: (_re_wrapop(attr_op, respec), tok_op, is_ext, delim)
+        for attr, (respec, is_ext) in {**respecs}.items()
+    }
+
+
+def _tokenspec2extenspecs(spec):
+    if not isinstance(spec.get("_", {}), dict):
         raise ValueError(Errors.E154.format())
-    for ext, value in extensions.items():
-        if isinstance(value, dict):
-            return _evalfunc_from_predicates(ext, value, True)
-        return lambda x, _: x._.get(ext) == value
+    return _tokenspec2nativspecs(spec.get("_", {}), True)
 
 
-def _evalfunc_from_predicates(attr, predicates, in_ext=False):
-    def evalfunc(x, preds, cache):
-        for pred, value in preds.items():
-            res = _evalfunc_from_predicate(x, pred, value, attr, cache, in_ext)
-            if not res:
-                return False
-            # func = _evalfunc_from_predicate(pred, value, attr, in_ext)
-            # if not func(x):
-            # return False
-        return True
-
-    preds = {**predicates}
-    for pred, value in predicates.items():
-        if not isinstance(value, list):
+def _tokenspec2nativspecs(spec, is_extension=False):
+    pred2func = {
+        "REGEX": _predicate2regex,
+        "IN": _predicate2setmember,
+        "NOT_IN": _predicate2setmember,
+        "==": _predicate2comparison,
+        "!=": _predicate2comparison,
+        ">=": _predicate2comparison,
+        "<=": _predicate2comparison,
+        ">": _predicate2comparison,
+        "<": _predicate2comparison,
+    }
+    respecs = {}
+    for attr, value in spec.items():
+        if attr in ["_", "OP"]:
             continue
-        preds[pred] = frozenset(value)
-    return lambda x, cache: evalfunc(x, preds, cache)
+        if isinstance(value, int):
+            value = str(value)
+        regex_list = (
+            [pred2func[pred](pred, arg) for pred, arg in value.items()]
+            if isinstance(value, dict)
+            else [re.escape(value) if attr != "REGEX" else value]
+        )
+        for regex in regex_list:
+            respecs[attr] = (regex, is_extension)
+    return respecs
 
 
-_PFUNC_LOOKUP = {
-    "REGEX": lambda x, y: bool(re.search(y, x)),
-    "IN": lambda x, y: x in y,
-    "NOT_IN": lambda x, y: x not in y,
-    "==": lambda x, y: x == y,
-    "!=": lambda x, y: x != y,
-    ">=": lambda x, y: x >= y,
-    "<=": lambda x, y: x <= y,
-    ">": lambda x, y: x > y,
-    "<": lambda x, y: x < y,
+def _predicate2regex(_, argument):
+    # re.sub works bad with raw strings
+    split = re.split(r"(?:(?<!\[|\\)\^|(?<!\\)\$)", argument)
+    merge = "".join(split)
+    return merge if len(split) > 1 else "".join([r"[^ ]*?", merge, r"[^ ]*?"])
+
+
+def _predicate2setmember(predicate, argument):
+    pipe = (
+        re.escape(argument[0])
+        if len(argument) == 1
+        else r"".join(
+            [r"(?:", r"|".join((re.escape(term) for term in argument)), r")"]
+        )
+    )
+    if predicate == "NOT_IN":
+        return _re_wrapop("!", pipe)
+    return pipe
+
+
+def _predicate2comparison(predicate, argument):
+    return _re_toklen(predicate, argument)
+
+
+_WRAPOP_LOOKUP = {
+    "1": "({})",
+    "+": "({}(?:[ ]|\\b|^|$)+)+",
+    "!": "(?!{})([^ ]+)",
+    "?": "({}(?:[ ]|\\b|^|$)+)?",
+    "*": "({}(?:[ ]|\\b|^|$)+)*",
 }
 
 
-def _evalfunc_from_predicate(token, pred, value, attr, cache, in_ext=False):
-    val = token._.get(attr) if in_ext else _get_token_attr(token, attr)
-    key = val if isinstance(val, str) else str(val)
-    if key in cache:
-        return cache[key]
-    res = _PFUNC_LOOKUP[pred](val, value)
-    cache[key] = res
-    return res
-
-    # return lambda x: _PFUNC_LOOKUP[pred](
-    #     x._.get(attr) if in_ext else _get_token_attr(x, attr), value,
-    # )
+def _re_wrapop(op, content, lazy=False):
+    if op is None:
+        return content
+    if op not in _WRAPOP_LOOKUP:
+        keys = ", ".join(_WRAPOP_LOOKUP.keys())
+        raise ValueError(Errors.E011.format(op=op, opts=keys))
+    if lazy:
+        return _WRAPOP_LOOKUP[op].format(content) + "?"
+    return _WRAPOP_LOOKUP[op].format(content)
 
 
-@lru_cache(None)
-def _get_token_attr(token: Token, attr: str):
+def _re_toklen(pred, length):
+    preds = ("==", "!=", ">=", "<=", ">", "<")
+    if pred not in preds:
+        raise ValueError(Errors.E126.format(bad=pred, good=preds))
+    if pred == "==":
+        return "([^ ]{{{}}}+)".format(length)
+    elif pred == "!=":
+        return "([^ ]{{1,{}}}+|[^ ]{{{},}}+)".format(length - 1, length + 1)
+    elif pred == ">=":
+        return "([^ ]{{{},}}+)".format(length)
+    elif pred == "<=":
+        return "([^ ]{{1,{}}}+)".format(length)
+    elif pred == ">":
+        return "([^ ]{{{},}}+)".format(length + 1)
+    elif pred == "<":
+        return "([^ ]{{1,{}}}+)".format(length - 1)
+
+
+def _get_right_token_attr(token: Token, attr: str):
     if attr == "LEMMA":
         return token.lemma_
     elif attr == "NORM":
@@ -552,22 +498,14 @@ def _get_token_attr(token: Token, attr: str):
         return token.tag_
     elif attr == "DEP":
         return token.dep_
-    elif attr == "HEAD":
-        return token.head_
     elif attr == "SENT_START":
         return token.sent_start
-    elif attr == "ENT_IOB":
-        return token.ent_iob_
     elif attr == "ENT_TYPE":
         return token.ent_type_
-    elif attr == "ENT_ID":
-        return token.ent_id_
-    elif attr == "ENT_KB_ID":
-        return token.ent_kb_id_
-    elif attr == "LEX_ID":
-        return token.lex_id
     elif attr == "ORTH":
         return token.orth_
+    elif attr == "TEXT":
+        return token.text
     elif attr == "LOWER":
         return token.lower_
     elif attr == "SHAPE":
@@ -576,119 +514,16 @@ def _get_token_attr(token: Token, attr: str):
         return token.prefix_
     elif attr == "SUFFIX":
         return token.suffix_
+    # LENGTH attribute must be checked on text
+    # and it cannot live together with
+    # another textual attribute, so we set it
+    # as LOWER for a performance reason
     elif attr == "LENGTH":
-        return len(token)
+        return token.lower_
     elif attr == "CLUSTER":
         return token.cluster
     elif attr == "LANG":
         return token.lang_
     elif token.check_flag(intify_attr(attr)):
-        return True
-    return False
-
-
-_REGEX_ONE_TOKEN = r"(?>[^ ])+"
-
-
-def _regex_from_items(items):
-    return (
-        # if only about attributes, no regex
-        None  # r"[\s\S]+"
-        if not items or all(_REGEX_ONE_TOKEN in r for r in items)
-        else _regex_wrap_bounds(r"".join([r for r in items if r]), left=True)
-    )
-
-
-def _regext_from_tokenspec(tokenspec):
-
-    content = None
-    case_insensitive = False
-
-    if "REGEX" in tokenspec:
-        content = tokenspec["REGEX"]
-        if isinstance(content, str):
-            return content
-    elif "LOWER" in tokenspec:
-        case_insensitive = True
-        content = tokenspec["LOWER"]
-    elif "ORTH" in tokenspec:
-        content = tokenspec["ORTH"]
-    elif "TEXT" in tokenspec:
-        content = tokenspec["TEXT"]
-
-    op = tokenspec["OP"] if "OP" in tokenspec else None
-    return _regex_from_content(
-        content, case_insensitive=case_insensitive, op=op,
-    )
-
-
-def _regexl_from_tokenspec(tokenspec):
-    content = tokenspec["LEMMA"] if "LEMMA" in tokenspec else None
-    op = tokenspec["OP"] if "OP" in tokenspec else None
-    return _regex_from_content(content, op=op)
-
-
-def _regex_from_content(content, case_insensitive=False, op=None):
-    if not content:
-        regex = _REGEX_ONE_TOKEN
-        if op is not None and op != "!":
-            return _regex_wrap_op(op, regex)
-        return _regex_wrap_bounds(regex, right=True)
-
-    if isinstance(content, dict):
-        if "REGEX" in content:
-            regex = r"[^ ]*?" + content["REGEX"]
-            if case_insensitive:
-                regex = f"(?i:{regex})"
-            return regex
-        if "IN" in content:
-            in_op = "IN"
-            wrap_in_op = "1"
-        elif "NOT_IN" in content:
-            in_op = "NOT_IN"
-            wrap_in_op = "!"
-        else:
-            raise ValueError(Errors.E154.format())
-        terms = [re.escape(term) for term in content[in_op]]
-        regex = _regex_wrap_op(wrap_in_op, _regex_pipe_terms(terms))
-
-    else:
-        regex = re.escape(content)
-
-    if case_insensitive:
-        regex = f"(?i:{regex})"
-
-    if op is not None:
-        return _regex_wrap_op(op, regex)
-
-    return _regex_wrap_bounds(regex, right=True)
-
-
-def _regex_pipe_terms(terms):
-    return r"".join([r"(?>", r"|".join(terms), r")"])
-
-
-def _regex_wrap_bounds(text, left=None, right=None):
-    return "".join(
-        [
-            r"(?>\s+|\b|^)" if left else "",
-            text,
-            r"(?>\s+|\b|$)" if right else "",
-        ]
-    )
-
-
-_WRAP_OP_LOOKUP = {
-    ONE: "(?:{}(?:[^a-zA-Z0-9]+?|\\b|$))",
-    ONE_PLUS: "(?:{}(?:[^a-zA-Z0-9]+?|\\b|$))+",
-    ZERO: "(?!{}(?:[^a-zA-Z0-9]+?|\\b|$))[^ ]+",
-    ZERO_ONE: "(?:{}(?:[^a-zA-Z0-9]*?|\\b|$))?",
-    ZERO_PLUS: "(?:{}(?:[^a-zA-Z0-9]+?|\\b|$))*",
-}
-
-
-def _regex_wrap_op(op, text):
-    if op not in _WRAP_OP_LOOKUP:
-        keys = ", ".join(_WRAP_OP_LOOKUP.keys())
-        raise ValueError(Errors.E011.format(op=op, opts=keys))
-    return _WRAP_OP_LOOKUP[op].format(text)
+        return "True"
+    return "False"
