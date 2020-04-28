@@ -86,7 +86,7 @@ class Matcher(object):
             The rule, as an (on_match, patterns) tuple.
         """
         key = self._normalize_key(key)
-        return self[key] if key in self else default
+        return self[key] if key in self else (default, default)
 
     def add(self, key: str, patterns, on_match=None):
         """
@@ -142,7 +142,6 @@ class Matcher(object):
                 for attr in token:
                     iattr = intify_attr(attr)
                     self._seen_attrs.add(iattr)
-
         self._patterns.setdefault(key, [])
         self._callbacks[key] = on_match
         self._patterns[key].extend(patterns)
@@ -185,14 +184,12 @@ class Matcher(object):
             and not doc.is_tagged
         ):
             raise ValueError(Errors.E155.format())
-
         if DEP in self._seen_attrs and not doc.is_parsed:
             raise ValueError(Errors.E156.format())
-
         matches = []
         seen = set()
         tokens = [token for token in doc]
-        for match in find_matches(tokens, self._specs):
+        for match in _find_matches(tokens, self._specs):
             if match in seen:
                 continue
             seen.add(match)
@@ -213,34 +210,28 @@ class Matcher(object):
         )
 
 
-def find_matches(tokens, specs):
-    attrs_map = {}
-    for key, patternspecs in specs.items():
-        for patternspec in patternspecs:
+def _find_matches(tokens, specs):
+    attrs_maps_cache = {}
+    for key, pattern_specs in specs.items():
+        for pattern_spec in pattern_specs:
             candidates = [(0, len(tokens))]
-            for attr, (respec, is_extension) in patternspec.items():
-                if attr not in attrs_map:
-                    attrs_map[attr] = _attr2map(attr, tokens, is_extension)
-                i2idx, idx2i, text = attrs_map[attr]
+            for attr, (xp, is_extension) in pattern_spec.items():
+                if attr not in attrs_maps_cache:
+                    attrs_maps_cache[attr] = _attr_maps(attr, tokens, is_extension)
+                i2idx, idx2i, text = attrs_maps_cache[attr]
                 maxlen = len(text)
                 new_candidates = []
                 for candidate in candidates:
                     start_idx = i2idx[candidate[0]]
                     end_idx = i2idx[candidate[1]]
                     curr_text = text[start_idx:end_idx]
-                    for match in respec.finditer(curr_text, overlapped=True):
-                        start = start_idx + match.start()
-                        if text[start] == " ":
-                            start += 1
-                        if start > 0 and text[start - 1] != " ":
-                            start = text.find(" ", start) + 1
-                        end = start_idx + match.end()
-                        if end < maxlen and text[end] == " ":
-                            end += 1
-                        if end > 0 and end < maxlen and text[end - 1] != " ":
-                            end = text.find(" ", end) + 1
-                            if end == 0:
-                                end = maxlen
+                    for match in xp.finditer(curr_text, overlapped=True):
+                        start, end = _fix_match_span(
+                            text,
+                            start_idx + match.start(),
+                            start_idx + match.end(),
+                            maxlen,
+                        )
                         start_i = idx2i[start]
                         end_i = idx2i[end]
                         if (
@@ -251,47 +242,57 @@ def find_matches(tokens, specs):
                             continue
                         new_candidates.append((start_i, end_i))
                 candidates = new_candidates
-            yield from (
-                (key, candidate[0], candidate[1]) for candidate in candidates
-            )
+            yield from ((key, c[0], c[1]) for c in candidates)
 
 
-def _attr2map(attr, tokens, is_extension):
+def _attr_maps(attr, tokens, is_extension):
     i2idx = {}
     idx2i = {}
     text_tokens = []
     curr_length = 0
-    nspaces = 0
+    num_spaces = 0
     for i, token in enumerate(tokens):
         value = str(
-            token._.get(attr)
-            if is_extension
-            else _get_right_token_attr(token, attr)
+            token._.get(attr) if is_extension else _get_token_attr(token, attr)
         )
         text_tokens.append(value)
         idx = curr_length + i
         i2idx[i] = idx
         idx2i[idx] = i
         curr_length += len(value)
-        nspaces = i
-    curr_length += nspaces
+        num_spaces = i
+    curr_length += num_spaces
     i2idx[len(tokens)] = curr_length
     idx2i[curr_length] = len(tokens)
     return (i2idx, idx2i, " ".join(text_tokens))
 
 
+def _fix_match_span(text, start_idx, end_idx, maxlen):
+    if text[start_idx] == " ":
+        start_idx += 1
+    if start_idx > 0 and text[start_idx - 1] != " ":
+        start_idx = text.find(" ", start_idx) + 1
+    if end_idx < maxlen and text[end_idx] == " ":
+        end_idx += 1
+    if end_idx > 0 and end_idx < maxlen and text[end_idx - 1] != " ":
+        end_idx = text.find(" ", end_idx) + 1
+        if end_idx == 0:
+            end_idx = maxlen
+    return start_idx, end_idx
+
+
 def _preprocess_pattern(pattern):
-    attrspecs = {}
-    for tokenspec in pattern:
-        if not isinstance(tokenspec, dict):
+    pattern_spec = {}
+    num_tokens = len(pattern)
+    for tokens_spec in pattern:
+        if not isinstance(tokens_spec, dict):
             raise ValueError(Errors.E154.format())
-        for attr, value in {**tokenspec}.items():
+        for attr, value in {**tokens_spec}.items():
             # normalize attributes
             if attr.islower():
-                old_attr = attr
+                del tokens_spec[attr]
                 attr = attr.upper()
-                tokenspec[attr] = value
-                del tokenspec[old_attr]
+                tokens_spec[attr] = value
             if attr not in TOKEN_PATTERN_SCHEMA["items"]["properties"]:
                 raise ValueError(Errors.E152.format(attr=attr))
             if not (
@@ -309,183 +310,162 @@ def _preprocess_pattern(pattern):
                 raise ValueError(Errors.E154.format())
             if attr == "REGEX":
                 attr = "TEXT"
-            new_attrs = value.keys() if attr == "_" else [attr]
-            for new_attr in new_attrs:
-                attrspecs[new_attr] = ([(None, True)] * len(pattern), False)
-    for i, tokenspec in enumerate(pattern):
-        new_attrspecs = _tokenspec2attrspecs(tokenspec)
-        _align_attrspecs(i, attrspecs, new_attrspecs)
-    return _attrspecs2patternspec(attrspecs)
+            is_extension = attr == "_"
+            for a in value.keys() if is_extension else [attr]:
+                pattern_spec.setdefault(a, ([None] * num_tokens, is_extension))
+    for i, tokens_spec in enumerate(pattern):
+        _align_tokens_spec(pattern_spec, tokens_spec, i)
+    return _finalize_pattern_spec(pattern_spec)
 
 
-_REGEX_ONE_TOKEN = r"[^ ]+"
-_REGEX_TOKEN_START = r"(?:[ ]|^)"
-_REGEX_TOKEN_DELIM = "(?({})(?:[ ]|^|$)|)"
+# Quantifiers
+_NONE = "x"
+_ONE = "1"
+_ONE_PLUS = "+"
+_ZERO = "!"
+_ZERO_ONE = "?"
+_ZERO_PLUS = "*"
+
+_XP_ONE_TOKEN = r"[^ ]+"
+_XP_TOKEN_START = r"(?:[ ]|^)"
+_XP_TOKEN_DELIM = r"(?:[ ]|^|$)"
+
+_REGEX_PREDICATES = ("REGEX",)
+_SETMEMBER_PREDICATES = ("IN", "NOT_IN")
+_COMPARISON_PREDICATES = ("==", "!=", ">=", "<=", ">", "<")
 
 
-def _attrspecs2patternspec(attrspecs):
-    patternspec = {}
-    for attr, (respecs, is_extension) in attrspecs.items():
-        regex = "".join(
-            [
-                respec
-                if not delim
-                else (respec + _REGEX_TOKEN_DELIM.format(i + 1))
-                for i, (respec, delim) in enumerate(respecs)
-            ]
-        )
-        regex = "".join([_REGEX_TOKEN_START, regex])
+def _finalize_pattern_spec(spec):
+    final_spec = {}
+    for attr, (xps, is_extension) in spec.items():
+        regex = "".join([_XP_TOKEN_START, *xps])
         flags = re.U
         if attr in ["LENGTH", "LOWER"]:
             flags |= re.I
-        patternspec[attr] = (re.compile(regex, flags=flags), is_extension)
-    return {
-        k: v
-        for k, v in sorted(
-            patternspec.items(),
-            key=lambda x: x[0] not in ["LEMMA", "LOWER", "TEXT"],
-        )
-    }
+        final_spec[attr] = (re.compile(regex, flags=flags), is_extension)
+    sort_by = lambda x: x[0] not in ["LEMMA", "LOWER", "TEXT"]
+    return {k: v for k, v in sorted(final_spec.items(), key=sort_by)}
 
 
-def _align_attrspecs(i, attrspecs, new_attrspecs):
-    for (
-        new_attr,
-        (new_respec, op, new_is_extension, delim),
-    ) in new_attrspecs.items():
-        for attr, (respecs, _) in {**attrspecs}.items():
-            if respecs[i][0] is not None and attr != new_attr:
+def _align_tokens_spec(spec, tokens_spec, index):
+    xp_cond_delim = f"(?({index + 1}){_XP_TOKEN_DELIM}|)"
+    for a1, (xp, q) in _attrs_spec_from_tokens_spec(tokens_spec, index):
+        fix_q = q if q != _ZERO else _ONE
+        needs_delim = fix_q == _ONE
+        for a2, (xps, _) in spec.items():
+            _q = _xp = None
+            if not a1 or a1 == a2:
+                _q = q
+                _xp = xp
+            elif xps[index] == None:
+                _q = fix_q
+                _xp = _XP_ONE_TOKEN
+            if not (_q and _xp):
                 continue
-            if attr == new_attr:
-                respecs[i] = (new_respec or _REGEX_ONE_TOKEN, delim)
-                attrspecs[attr] = (respecs, new_is_extension)
-            else:
-                respecs[i] = (
-                    _re_wrapop(op, _REGEX_ONE_TOKEN, op == "+"),
-                    delim,
-                )
+            lazy = _q == _ONE_PLUS and _xp == _XP_ONE_TOKEN
+            xps[index] = _re_wrap_quantifier(_q, _xp, lazy)
+            if needs_delim:
+                xps[index] += xp_cond_delim
 
 
-def _tokenspec2attrspecs(tokenspec):
-    if "REGEX" in tokenspec:
-        return {
-            "TEXT": (_re_wrapop("1", tokenspec["REGEX"]), None, None, None)
-        }
-    if not tokenspec:
-        return {None: (None, "1", None, True)}
-    if "OP" in tokenspec and len(tokenspec) == 1:
-        op = tokenspec["OP"]
-        return {None: (None, op, None, op in ["1", "!"])}
-    respecs = {
-        **_tokenspec2extenspecs(tokenspec),
-        **_tokenspec2nativspecs(tokenspec),
-    }
-    attr_op = tokenspec["OP"] if "OP" in tokenspec else "1"
-    tok_op = attr_op or "1" if attr_op != "!" else "1"
-    delim = attr_op in ["1", "!"]
-    return {
-        attr: (_re_wrapop(attr_op, respec), tok_op, is_ext, delim)
-        for attr, (respec, is_ext) in {**respecs}.items()
-    }
+def _attrs_spec_from_tokens_spec(tokens_spec, index):
+    if not tokens_spec:
+        yield None, (_XP_ONE_TOKEN, _ONE)
+    elif "REGEX" in tokens_spec:
+        yield "TEXT", (tokens_spec["REGEX"], _NONE)
+    else:
+        q = tokens_spec["OP"] if "OP" in tokens_spec else None
+        if q and len(tokens_spec) == 1:
+            yield None, (_XP_ONE_TOKEN, q)
+        else:
+            if not q:
+                q = _ONE # default quantifier
+            for (attr, xp) in _attrs_xp_from_tokens_spec(tokens_spec):
+                yield attr, (xp, q)
 
 
-def _tokenspec2extenspecs(spec):
-    if not isinstance(spec.get("_", {}), dict):
-        raise ValueError(Errors.E154.format())
-    return _tokenspec2nativspecs(spec.get("_", {}), True)
-
-
-def _tokenspec2nativspecs(spec, is_extension=False):
-    pred2func = {
-        "REGEX": _predicate2regex,
-        "IN": _predicate2setmember,
-        "NOT_IN": _predicate2setmember,
-        "==": _predicate2comparison,
-        "!=": _predicate2comparison,
-        ">=": _predicate2comparison,
-        "<=": _predicate2comparison,
-        ">": _predicate2comparison,
-        "<": _predicate2comparison,
-    }
-    respecs = {}
-    for attr, value in spec.items():
-        if attr in ["_", "OP"]:
+def _attrs_xp_from_tokens_spec(tokens_spec):
+    for attr, value in tokens_spec.items():
+        if attr == "OP":
+            continue
+        if attr == "_":
+            yield from _attrs_xp_from_tokens_spec(value)
             continue
         if isinstance(value, int):
             value = str(value)
-        regex_list = (
-            [pred2func[pred](pred, arg) for pred, arg in value.items()]
-            if isinstance(value, dict)
-            else [re.escape(value) if attr != "REGEX" else value]
-        )
-        for regex in regex_list:
-            respecs[attr] = (regex, is_extension)
-    return respecs
+        if isinstance(value, dict):
+            for p, a in value.items():
+                if p in _REGEX_PREDICATES:
+                    yield attr, _xp_from_regex(a)
+                elif p in _SETMEMBER_PREDICATES:
+                    yield attr, _xp_from_setmember(p, a)
+                elif p in _COMPARISON_PREDICATES:
+                    yield attr, _xp_from_comparison(p, a)
+            continue
+        yield attr, (re.escape(value) if attr != "REGEX" else value)
 
 
-def _predicate2regex(_, argument):
-    # re.sub works bad with raw strings
-    split = re.split(r"(?:(?<!\[|\\)\^|(?<!\\)\$)", argument)
+def _xp_from_regex(regex):
+    # Symbols `^` and `$` for start, end string must be removed
+    # Here we don't use `re.sub` because works bad with raw strings
+    split = re.split(r"(?:(?<!\[|\\)\^|(?<!\\)\$)", regex)
     merge = "".join(split)
     return merge if len(split) > 1 else "".join([r"[^ ]*?", merge, r"[^ ]*?"])
 
 
-def _predicate2setmember(predicate, argument):
-    pipe = (
-        re.escape(argument[0])
-        if len(argument) == 1
-        else r"".join(
-            [r"(?:", r"|".join((re.escape(term) for term in argument)), r")"]
-        )
-    )
-    if predicate == "NOT_IN":
-        return _re_wrapop("!", pipe)
-    return pipe
+def _xp_from_setmember(operator, args):
+    # We optimize in case of a unique argument
+    if len(args) == 1:
+        pipe = re.escape(args[0])
+    else:
+        terms = (re.escape(term) for term in args)
+        pipe = "".join([r"(?:", r"|".join(terms), r")"])
+    return _re_wrap_quantifier(_ZERO, pipe) if operator == "NOT_IN" else pipe
 
 
-def _predicate2comparison(predicate, argument):
-    return _re_toklen(predicate, argument)
+def _xp_from_comparison(operator, length):
+    return _re_wrap_length(operator, length)
 
 
-_WRAPOP_LOOKUP = {
-    "1": "({})",
-    "+": "({}(?:[ ]|\\b|^|$)+)+",
-    "!": "(?!{})([^ ]+)",
-    "?": "({}(?:[ ]|\\b|^|$)+)?",
-    "*": "({}(?:[ ]|\\b|^|$)+)*",
+_WRAP_Q_LOOKUP = {
+    _NONE: "({xp})",
+    _ONE: "({xp})",
+    _ONE_PLUS: "({{xp}}{delim})+".format(delim=_XP_TOKEN_DELIM),
+    _ZERO: "(?!{xp})([^ ]+)",
+    _ZERO_ONE: "({{xp}}{delim})?".format(delim=_XP_TOKEN_DELIM),
+    _ZERO_PLUS: "({{xp}}{delim})*".format(delim=_XP_TOKEN_DELIM),
 }
 
 
-def _re_wrapop(op, content, lazy=False):
-    if op is None:
-        return content
-    if op not in _WRAPOP_LOOKUP:
-        keys = ", ".join(_WRAPOP_LOOKUP.keys())
-        raise ValueError(Errors.E011.format(op=op, opts=keys))
-    if lazy:
-        return _WRAPOP_LOOKUP[op].format(content) + "?"
-    return _WRAPOP_LOOKUP[op].format(content)
+def _re_wrap_quantifier(q, xp, lazy=False):
+    if q is None:
+        return xp
+    if q not in _WRAP_Q_LOOKUP:
+        keys = ", ".join(_WRAP_Q_LOOKUP.keys())
+        raise ValueError(Errors.E011.format(op=q, opts=keys))
+    return _WRAP_Q_LOOKUP[q].format(xp=xp) + ("?" if lazy else "")
 
 
-def _re_toklen(pred, length):
-    preds = ("==", "!=", ">=", "<=", ">", "<")
-    if pred not in preds:
-        raise ValueError(Errors.E126.format(bad=pred, good=preds))
-    if pred == "==":
-        return "([^ ]{{{}}}+)".format(length)
-    elif pred == "!=":
-        return "([^ ]{{1,{}}}+|[^ ]{{{},}}+)".format(length - 1, length + 1)
-    elif pred == ">=":
-        return "([^ ]{{{},}}+)".format(length)
-    elif pred == "<=":
-        return "([^ ]{{1,{}}}+)".format(length)
-    elif pred == ">":
-        return "([^ ]{{{},}}+)".format(length + 1)
-    elif pred == "<":
-        return "([^ ]{{1,{}}}+)".format(length - 1)
+def _re_wrap_length(cmp, l):
+    if cmp == "==":
+        return "([^ ]{{{}}}+)".format(l)
+    elif cmp == "!=":
+        return "([^ ]{{1,{}}}+|[^ ]{{{},}}+)".format(l - 1, l + 1)
+    elif cmp == ">=":
+        return "([^ ]{{{},}}+)".format(l)
+    elif cmp == "<=":
+        return "([^ ]{{1,{}}}+)".format(l)
+    elif cmp == ">":
+        return "([^ ]{{{},}}+)".format(l + 1)
+    elif cmp == "<":
+        return "([^ ]{{1,{}}}+)".format(l - 1)
+    else:
+        raise ValueError(
+            Errors.E126.format(bad=cmp, good=_COMPARISON_PREDICATES)
+        )
 
 
-def _get_right_token_attr(token: Token, attr: str):
+def _get_token_attr(token: Token, attr: str):
     if attr == "LEMMA":
         return token.lemma_
     elif attr == "NORM":
