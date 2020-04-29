@@ -2,20 +2,18 @@ import cProfile
 import pstats
 from pathlib import Path
 
-import plac
 import spacy
-from spacy.matcher import Matcher as _Matcher
+from spacy.matcher import Matcher as SpacyMatcher
 from srsly import read_jsonl
 from wasabi import msg
 
 from ..matcher import Matcher
 
 
-@plac.annotations()
 def profile(patterns_path, matcher_type: str = None):
     sample_doc = doc()
     matcher = (
-        _Matcher(sample_doc.vocab)
+        SpacyMatcher(sample_doc.vocab)
         if matcher_type == "spacy"
         else Matcher(sample_doc.vocab)
     )
@@ -47,5 +45,5 @@ def patterns(patterns_path):
 
 def doc():
     return spacy.load("en_core_web_sm")(
-        open(Path("resources").joinpath("sample.txt"), "r").read()
+        open(Path("data").joinpath("sample.txt"), "r").read()
     )

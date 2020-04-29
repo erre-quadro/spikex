@@ -326,10 +326,12 @@ _ZERO = "!"
 _ZERO_ONE = "?"
 _ZERO_PLUS = "*"
 
+# Regex
 _XP_ONE_TOKEN = r"[^ ]+"
 _XP_TOKEN_START = r"(?:[ ]|^)"
 _XP_TOKEN_DELIM = r"(?:[ ]|^|$)"
 
+# Predicates
 _REGEX_PREDICATES = ("REGEX",)
 _SETMEMBER_PREDICATES = ("IN", "NOT_IN")
 _COMPARISON_PREDICATES = ("==", "!=", ">=", "<=", ">", "<")
