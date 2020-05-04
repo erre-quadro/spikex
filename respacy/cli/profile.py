@@ -10,11 +10,11 @@ from wasabi import msg
 from ..matcher import Matcher
 
 
-def profile(patterns_path, matcher_type: str = None):
+def profile(patterns_path, use_spacy: str = None):
     sample_doc = doc()
     matcher = (
         SpacyMatcher(sample_doc.vocab)
-        if matcher_type == "spacy"
+        if use_spacy
         else Matcher(sample_doc.vocab)
     )
     matcher.add("Profile", patterns(patterns_path))
@@ -45,5 +45,5 @@ def patterns(patterns_path):
 
 def doc():
     return spacy.load("en_core_web_sm")(
-        open(Path("data").joinpath("sample.txt"), "r").read()
+        open(Path("resources").joinpath("sample.txt"), "r").read()
     )

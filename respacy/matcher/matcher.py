@@ -214,6 +214,7 @@ def _find_matches(tokens, specs):
     attrs_maps_cache = {}
     for key, pattern_specs in specs.items():
         for pattern_spec in pattern_specs:
+            should_match_len = False
             candidates = [(0, len(tokens))]
             for attr, (xp, is_extension) in pattern_spec.items():
                 if attr not in attrs_maps_cache:
@@ -226,21 +227,25 @@ def _find_matches(tokens, specs):
                     end_idx = i2idx[candidate[1]]
                     curr_text = text[start_idx:end_idx]
                     for match in xp.finditer(curr_text, overlapped=True):
-                        start, end = _fix_match_span(
-                            text,
-                            start_idx + match.start(),
-                            start_idx + match.end(),
-                            maxlen,
-                        )
+                        start = start_idx + match.start()
+                        while start not in idx2i and start < maxlen:
+                            start += 1
+                        end = start_idx + match.end()
+                        while end not in idx2i and end < maxlen:
+                            end += 1
                         start_i = idx2i[start]
                         end_i = idx2i[end]
                         if (
-                            new_candidates
+                            should_match_len
+                            and (candidate[1] != end_i
+                            or candidate[0] != start_i)
+                            or (new_candidates
                             and new_candidates[-1][1] == end_i
-                            and new_candidates[-1][0] < start_i
+                            and new_candidates[-1][0] < start_i)
                         ):
                             continue
                         new_candidates.append((start_i, end_i))
+                should_match_len = True
                 candidates = new_candidates
             yield from ((key, c[0], c[1]) for c in candidates)
 
@@ -306,11 +311,11 @@ def _preprocess_pattern(pattern):
                 )
             if attr == "OP":
                 continue
-            if attr == "_" and not isinstance(value, dict):
+            is_extension = attr == "_"
+            if is_extension and not isinstance(value, dict):
                 raise ValueError(Errors.E154.format())
             if attr == "REGEX":
                 attr = "TEXT"
-            is_extension = attr == "_"
             for a in value.keys() if is_extension else [attr]:
                 pattern_spec.setdefault(a, ([None] * num_tokens, is_extension))
     for i, tokens_spec in enumerate(pattern):
