@@ -10,7 +10,7 @@ from wasabi import msg
 from ..matcher import Matcher
 
 
-def profile(patterns_path, use_spacy: str = None):
+def profile(patterns_path, use_spacy: bool = None):
     sample_doc = doc()
     matcher = (
         SpacyMatcher(sample_doc.vocab)

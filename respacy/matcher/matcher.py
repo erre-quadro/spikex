@@ -212,42 +212,51 @@ class Matcher(object):
 
 def _find_matches(tokens, specs):
     attrs_maps_cache = {}
+    num_tokens = len(tokens)
     for key, pattern_specs in specs.items():
-        for pattern_spec in pattern_specs:
-            should_match_len = False
-            candidates = [(0, len(tokens))]
-            for attr, (xp, is_extension) in pattern_spec.items():
+        for pattern_spec, anchor_gs in pattern_specs:
+            candidates = [((0, num_tokens), {})]
+            for attr, (xp, is_ext) in pattern_spec.items():
                 if attr not in attrs_maps_cache:
-                    attrs_maps_cache[attr] = _attr_maps(attr, tokens, is_extension)
+                    attrs_maps_cache[attr] = _attr_maps(attr, tokens, is_ext)
                 i2idx, idx2i, text = attrs_maps_cache[attr]
                 maxlen = len(text)
                 new_candidates = []
-                for candidate in candidates:
+                for candidate, anchor_ss in candidates:
                     start_idx = i2idx[candidate[0]]
                     end_idx = i2idx[candidate[1]]
                     curr_text = text[start_idx:end_idx]
                     for match in xp.finditer(curr_text, overlapped=True):
-                        start = start_idx + match.start()
-                        while start not in idx2i and start < maxlen:
-                            start += 1
-                        end = start_idx + match.end()
-                        while end not in idx2i and end < maxlen:
-                            end += 1
-                        start_i = idx2i[start]
-                        end_i = idx2i[end]
-                        if (
-                            should_match_len
-                            and (candidate[1] != end_i
-                            or candidate[0] != start_i)
-                            or (new_candidates
-                            and new_candidates[-1][1] == end_i
-                            and new_candidates[-1][0] < start_i)
-                        ):
-                            continue
-                        new_candidates.append((start_i, end_i))
-                should_match_len = True
+                        span = (
+                            start_idx + match.span()[0],
+                            start_idx + match.span()[1],
+                        )
+                        start, end = _span_idx2i(span, idx2i, maxlen)
+                        new_ss = {}
+                        for i in range(len(match.groups())):
+                            group_i = i + 1
+                            if group_i not in anchor_gs:
+                                continue
+                            span_g = match.span(group_i)
+                            span = (
+                                start_idx + span_g[0],
+                                start_idx + span_g[1],
+                            )
+                            new_ss[group_i] = _span_idx2i(span, idx2i, maxlen)
+                        if anchor_ss:
+                            should_stop = False
+                            for group_i, span in new_ss.items():
+                                if anchor_ss[group_i] != span:
+                                    should_stop = True
+                                    break
+                            if should_stop:
+                                continue
+                        new_candidates.append(((start, end), new_ss))
                 candidates = new_candidates
-            yield from ((key, c[0], c[1]) for c in candidates)
+            matches = [c[0] for c in candidates]
+            yield from (
+                (key, *match) for match in _filter_out_submatches(matches)
+            )
 
 
 def _attr_maps(attr, tokens, is_extension):
@@ -272,18 +281,29 @@ def _attr_maps(attr, tokens, is_extension):
     return (i2idx, idx2i, " ".join(text_tokens))
 
 
-def _fix_match_span(text, start_idx, end_idx, maxlen):
-    if text[start_idx] == " ":
-        start_idx += 1
-    if start_idx > 0 and text[start_idx - 1] != " ":
-        start_idx = text.find(" ", start_idx) + 1
-    if end_idx < maxlen and text[end_idx] == " ":
-        end_idx += 1
-    if end_idx > 0 and end_idx < maxlen and text[end_idx - 1] != " ":
-        end_idx = text.find(" ", end_idx) + 1
-        if end_idx == 0:
-            end_idx = maxlen
-    return start_idx, end_idx
+def _span_idx2i(span_idx, idx2i, maxlen):
+    start = span_idx[0]
+    while start not in idx2i and start < maxlen:
+        start += 1
+    end = span_idx[1]
+    while end not in idx2i and end < maxlen:
+        end += 1
+    return idx2i[start], idx2i[end]
+
+
+def _filter_out_submatches(matches):
+    i1 = 0
+    num_matches = len(matches)
+    while i1 < num_matches:
+        yield matches[i1]
+        i2 = i1 + 1
+        while (
+            i2 < num_matches
+            and matches[i1][0] < matches[i2][0]
+            and matches[i1][1] == matches[i2][1]
+        ):
+            i2 += 1
+        i1 = i2
 
 
 def _preprocess_pattern(pattern):
@@ -311,11 +331,11 @@ def _preprocess_pattern(pattern):
                 )
             if attr == "OP":
                 continue
-            is_extension = attr == "_"
-            if is_extension and not isinstance(value, dict):
+            if attr == "_" and not isinstance(value, dict):
                 raise ValueError(Errors.E154.format())
             if attr == "REGEX":
                 attr = "TEXT"
+            is_extension = attr == "_"
             for a in value.keys() if is_extension else [attr]:
                 pattern_spec.setdefault(a, ([None] * num_tokens, is_extension))
     for i, tokens_spec in enumerate(pattern):
@@ -341,17 +361,27 @@ _REGEX_PREDICATES = ("REGEX",)
 _SETMEMBER_PREDICATES = ("IN", "NOT_IN")
 _COMPARISON_PREDICATES = ("==", "!=", ">=", "<=", ">", "<")
 
+# Other
+_ANCHOR_QS = (_ONE, _ONE_PLUS)
+
 
 def _finalize_pattern_spec(spec):
+    anchor_gs = set()
     final_spec = {}
     for attr, (xps, is_extension) in spec.items():
-        regex = "".join([_XP_TOKEN_START, *xps])
+        if not anchor_gs:
+            for i, (_, q) in enumerate(xps):
+                if q not in _ANCHOR_QS:
+                    continue
+                anchor_gs.add(i + 1)
+        regex = "".join([_XP_TOKEN_START, *(x[0] for x in xps)])
         flags = re.U
         if attr in ["LENGTH", "LOWER"]:
             flags |= re.I
         final_spec[attr] = (re.compile(regex, flags=flags), is_extension)
     sort_by = lambda x: x[0] not in ["LEMMA", "LOWER", "TEXT"]
-    return {k: v for k, v in sorted(final_spec.items(), key=sort_by)}
+    final_spec = {k: v for k, v in sorted(final_spec.items(), key=sort_by)}
+    return (final_spec, anchor_gs)
 
 
 def _align_tokens_spec(spec, tokens_spec, index):
@@ -370,9 +400,10 @@ def _align_tokens_spec(spec, tokens_spec, index):
             if not (_q and _xp):
                 continue
             lazy = _q == _ONE_PLUS and _xp == _XP_ONE_TOKEN
-            xps[index] = _re_wrap_quantifier(_q, _xp, lazy)
+            _xp = _re_wrap_quantifier(_q, _xp, lazy)
             if needs_delim:
-                xps[index] += xp_cond_delim
+                _xp += xp_cond_delim
+            xps[index] = (_xp, _q)
 
 
 def _attrs_spec_from_tokens_spec(tokens_spec, index):
@@ -386,7 +417,7 @@ def _attrs_spec_from_tokens_spec(tokens_spec, index):
             yield None, (_XP_ONE_TOKEN, q)
         else:
             if not q:
-                q = _ONE # default quantifier
+                q = _ONE  # default quantifier
             for (attr, xp) in _attrs_xp_from_tokens_spec(tokens_spec):
                 yield attr, (xp, q)
 
@@ -427,7 +458,7 @@ def _xp_from_setmember(operator, args):
     else:
         terms = (re.escape(term) for term in args)
         pipe = "".join([r"(?:", r"|".join(terms), r")"])
-    return _re_wrap_quantifier(_ZERO, pipe) if operator == "NOT_IN" else pipe
+    return f"(?!{pipe})[^ ]+" if operator == "NOT_IN" else pipe
 
 
 def _xp_from_comparison(operator, length):
@@ -437,35 +468,40 @@ def _xp_from_comparison(operator, length):
 _WRAP_Q_LOOKUP = {
     _NONE: "({xp})",
     _ONE: "({xp})",
-    _ONE_PLUS: "({{xp}}{delim})+".format(delim=_XP_TOKEN_DELIM),
+    _ONE_PLUS: "((?:{{xp}}{delim})+)".format(delim=_XP_TOKEN_DELIM),
     _ZERO: "(?!{xp})([^ ]+)",
     _ZERO_ONE: "({{xp}}{delim})?".format(delim=_XP_TOKEN_DELIM),
-    _ZERO_PLUS: "({{xp}}{delim})*".format(delim=_XP_TOKEN_DELIM),
+    _ZERO_PLUS: "((?:{{xp}}{delim})*)".format(delim=_XP_TOKEN_DELIM),
 }
 
 
 def _re_wrap_quantifier(q, xp, lazy=False):
     if q is None:
         return xp
+    if lazy and q not in (_ONE_PLUS, _ZERO_PLUS):
+        raise ValueError
     if q not in _WRAP_Q_LOOKUP:
         keys = ", ".join(_WRAP_Q_LOOKUP.keys())
         raise ValueError(Errors.E011.format(op=q, opts=keys))
-    return _WRAP_Q_LOOKUP[q].format(xp=xp) + ("?" if lazy else "")
+    xpq = _WRAP_Q_LOOKUP[q].format(xp=xp)
+    if not lazy:
+        return xpq
+    return "".join([xpq[:-1], "?", xpq[-1:]])
 
 
 def _re_wrap_length(cmp, l):
     if cmp == "==":
-        return "([^ ]{{{}}}+)".format(l)
+        return "(?:[^ ]{{{}}}+)".format(l)
     elif cmp == "!=":
-        return "([^ ]{{1,{}}}+|[^ ]{{{},}}+)".format(l - 1, l + 1)
+        return "(?:[^ ]{{1,{}}}+|[^ ]{{{},}}+)".format(l - 1, l + 1)
     elif cmp == ">=":
-        return "([^ ]{{{},}}+)".format(l)
+        return "(?:[^ ]{{{},}}+)".format(l)
     elif cmp == "<=":
-        return "([^ ]{{1,{}}}+)".format(l)
+        return "(?:[^ ]{{1,{}}}+)".format(l)
     elif cmp == ">":
-        return "([^ ]{{{},}}+)".format(l + 1)
+        return "(?:[^ ]{{{},}}+)".format(l + 1)
     elif cmp == "<":
-        return "([^ ]{{1,{}}}+)".format(l - 1)
+        return "(?:[^ ]{{1,{}}}+)".format(l - 1)
     else:
         raise ValueError(
             Errors.E126.format(bad=cmp, good=_COMPARISON_PREDICATES)
