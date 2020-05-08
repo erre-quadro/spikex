@@ -30,6 +30,10 @@ typer = "*"
 wasabi = "*"
 respacy = {editable = true,path = "."}
 spacy = "*"
+ftfy = "*"
+smart-open = "*"
+cyac = "*"
+cython = "*"
 
 [pipenv]
 allow_prereleases = true

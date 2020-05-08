@@ -60,8 +60,6 @@ class AbbreviationDetector:
 
     def __call__(self, doc: Doc) -> Doc:
         matches = self.matcher(doc)
-        for _, s, e in matches:
-            print(doc[s:e])
         matches_no_punct = set(
             [
                 (

@@ -231,3 +231,15 @@ def test_matcher_zero_one_zero_plus(en_vocab):
     assert len(matcher(nlp("a b z"))) == 1
     assert len(matcher(nlp("a b z b"))) == 1
     assert len(matcher(nlp("a b b z"))) == 1
+
+
+def test_matching_engine_chain(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [
+        {"LENGTH": {"==": 1}, "OP": "*"},
+        {"LOWER": "test"},
+        {"LENGTH": {"==": 1}, "OP": "*"},
+    ]
+    matcher.add("TEST_CHAIN", [pattern])
+    matches = matcher(Doc(en_vocab, words=["aa", "a", "test", "b", "bb"]))
+    assert matches[0][1:] == (1, 4)
