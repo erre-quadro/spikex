@@ -382,7 +382,7 @@ def _finalize_pattern_spec(spec):
                     continue
                 anchor_gs.add(i + 1)
         regex = "".join([_XP_TOKEN_START, *(x[0] for x in xps)])
-        flags = re.U
+        flags = re.U | re.M
         if attr in ["LENGTH", "LOWER"]:
             flags |= re.I
         final_spec[attr] = (re.compile(regex, flags=flags), is_extension)
