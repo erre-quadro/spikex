@@ -265,20 +265,29 @@ def _attr_maps(attr, tokens, is_extension):
     text_tokens = []
     curr_length = 0
     num_spaces = 0
+    regex_attr = attr == "REGEX"
     for i, token in enumerate(tokens):
-        value = str(
-            token._.get(attr) if is_extension else _get_token_attr(token, attr)
-        )
-        text_tokens.append(value)
-        idx = curr_length + i
+        pad = i if not regex_attr else num_spaces
+        idx = curr_length + pad
         i2idx[i] = idx
         idx2i[idx] = i
+        if is_extension:
+            value = token._.get(attr)
+        else:
+            value = _get_token_attr(token, attr)
+        value = str(value)
         curr_length += len(value)
-        num_spaces = i
+        if regex_attr:
+            value += token.whitespace_
+            num_spaces += len(token.whitespace_)
+        else:
+            num_spaces = i
+        text_tokens.append(value)
     curr_length += num_spaces
     i2idx[len(tokens)] = curr_length
     idx2i[curr_length] = len(tokens)
-    return (i2idx, idx2i, " ".join(text_tokens))
+    text = ("" if regex_attr else " ").join(text_tokens)
+    return (i2idx, idx2i, text)
 
 
 def _span_idx2i(span_idx, idx2i, maxlen):
@@ -333,8 +342,6 @@ def _preprocess_pattern(pattern):
                 continue
             if attr == "_" and not isinstance(value, dict):
                 raise ValueError(Errors.E154.format())
-            if attr == "REGEX":
-                attr = "TEXT"
             is_extension = attr == "_"
             for a in value.keys() if is_extension else [attr]:
                 pattern_spec.setdefault(a, ([None] * num_tokens, is_extension))
@@ -375,7 +382,7 @@ def _finalize_pattern_spec(spec):
                     continue
                 anchor_gs.add(i + 1)
         regex = "".join([_XP_TOKEN_START, *(x[0] for x in xps)])
-        flags = re.U
+        flags = re.U | re.M
         if attr in ["LENGTH", "LOWER"]:
             flags |= re.I
         final_spec[attr] = (re.compile(regex, flags=flags), is_extension)
@@ -410,7 +417,7 @@ def _attrs_spec_from_tokens_spec(tokens_spec, index):
     if not tokens_spec:
         yield None, (_XP_ONE_TOKEN, _ONE)
     elif "REGEX" in tokens_spec:
-        yield "TEXT", (tokens_spec["REGEX"], _NONE)
+        yield "REGEX", (tokens_spec["REGEX"], _NONE)
     else:
         q = tokens_spec["OP"] if "OP" in tokens_spec else None
         if q and len(tokens_spec) == 1:
@@ -509,7 +516,9 @@ def _re_wrap_length(cmp, l):
 
 
 def _get_token_attr(token: Token, attr: str):
-    if attr == "LEMMA":
+    if attr == "REGEX":
+        return token.text
+    elif attr == "LEMMA":
         return token.lemma_
     elif attr == "NORM":
         if not token.norm_:

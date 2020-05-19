@@ -17,8 +17,13 @@ def open(filename, mode="r", folder=None):
     return _open(path.joinpath(filename), mode)
 
 
-def contains(filename):
-    return _HERE_PATH.joinpath(filename).exists()
+def contains(filename, folder=None):
+    path = _HERE_PATH
+    if folder is not None:
+        path = path.joinpath(folder)
+        if not path.exists():
+            return False
+    return path.joinpath(filename).exists()
 
 
 def delete(filename):

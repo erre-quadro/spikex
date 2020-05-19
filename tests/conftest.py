@@ -17,3 +17,8 @@ def nlp():
 @pytest.fixture(scope="session")
 def en_vocab():
     return get_lang_class("en").Defaults.create_vocab()
+
+
+@pytest.fixture(scope="session")
+def en_tokenizer():
+    return get_lang_class("en").Defaults.create_tokenizer()

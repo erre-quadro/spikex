@@ -1,7 +1,7 @@
 import pytest
 
 from respacy import data
-from respacy.ontographs import WikiGraph
+from respacy.wikigraph import WikiGraph
 
 
 @pytest.mark.slow()
