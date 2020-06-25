@@ -1,127 +1,176 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
+from pathlib import Path
 
 from ftfy import fix_text
 from smart_open.compression import compression_wrapper
 from smart_open.http import open as http_open
 from tqdm import tqdm
+from wasabi import msg
 from yarl import URL
 
-from .. import data
-
 __all__ = [
-    "get_pageid_title_map",
-    "get_categoryid_title_map",
-    "get_redirectid_target_map",
-    "get_categories_linking_map",
+    "iter_page_dump_data",
+    "iter_redirect_dump_data",
+    "iter_categorylinks_dump_data",
 ]
 
-_WIKI_DP_PAGE = "page"
-_WIKI_DP_REDIRECT = "redirect"
+config = {
+    "disk_path": None,
+    "keep_files": None,
+    "lang": "en",
+    "max_workers": 4,
+    "verbose": None,
+    "version": "latest",
+}
+
+WIKI_NS_KIND_CATEGORY = "14"
+WIKI_NS_KIND_PAGE = "0"
+
+WIKI_CL_TYPE_CATEGORY = "subcat"
+WIKI_CL_TYPE_PAGE = "page"
+
 _WIKI_DP_CATEGORYLINKS = "categorylinks"
+_WIKI_DP_PAGE = "page"
+_WIKI_DP_PAGE_PROPS = "page_props"
+_WIKI_DP_REDIRECT = "redirect"
+
 _WIKI_DL_NAME = "{l}wiki-{v}-{t}.sql.gz"
 _WIKI_DL_PATH = "https://dumps.wikimedia.org/{l}wiki/{v}/{n}"
 
 
-def get_pageid_title_map(l, v):
-    dump_url = _get_wiki_dump_dl_url(l, _WIKI_DP_PAGE, v)
-    return _parse_wiki_sql_dump(dump_url, _parse_fx_pageid_title_map)
+def iter_page_props_dump_data(**kwargs):
+    dump_url = _get_wiki_dump_dl_url(_WIKI_DP_PAGE_PROPS, **kwargs)
+    return _parse_wiki_sql_dump(dump_url, _parse_fx_page_props_dump, **kwargs)
 
 
-def _parse_fx_pageid_title_map(el):
-    if el[1] != "0":
+def _parse_fx_page_props_dump(el):
+    pageid = el[0]
+    prop = el[1]
+    value = el[2]
+    return pageid, prop, value
+
+
+def iter_page_dump_data(**kwargs):
+    dump_url = _get_wiki_dump_dl_url(_WIKI_DP_PAGE, **kwargs)
+    return _parse_wiki_sql_dump(dump_url, _parse_fx_page_dump, **kwargs)
+
+
+def _parse_fx_page_dump(el):
+    if el[1] not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
         return
-    pageid = int(el[0])
+    ns_kind = el[1]
+    pageid = el[0]
     title = fix_text(el[2])
-    return pageid, title
+    return ns_kind, pageid, title
 
 
-def get_categoryid_title_map(l, v):
-    dump_url = _get_wiki_dump_dl_url(l, _WIKI_DP_PAGE, v)
-    return _parse_wiki_sql_dump(dump_url, _parse_fx_categoryid_title_map)
+def iter_redirect_dump_data(**kwargs):
+    dump_url = _get_wiki_dump_dl_url(_WIKI_DP_REDIRECT, **kwargs)
+    yield from _parse_wiki_sql_dump(
+        dump_url, _parse_fx_redirect_dump, **kwargs
+    )
 
 
-def _parse_fx_categoryid_title_map(el):
-    if el[1] != "14":
+def _parse_fx_redirect_dump(el):
+    if el[1] not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
         return
-    pageid = int(el[0])
-    title = fix_text(el[2])
-    return pageid, title
-
-
-def get_redirectid_target_map(l, v):
-    dump_url = _get_wiki_dump_dl_url(l, _WIKI_DP_REDIRECT, v)
-    return _parse_wiki_sql_dump(dump_url, _parse_fx_redirectid_target_map)
-
-
-def _parse_fx_redirectid_target_map(el):
-    if el[1] not in ("0", "14"):
-        return
-    redirectid = int(el[0])
+    redirectid = el[0]
     title = fix_text(el[2])
     return redirectid, title
 
 
-def get_categories_linking_map(l, v):
-    dump_url = _get_wiki_dump_dl_url(l, _WIKI_DP_CATEGORYLINKS, v)
-    return _parse_wiki_sql_dump(dump_url, _parse_fx_categories_linking_map)
+def iter_categorylinks_dump_data(**kwargs):
+    dump_url = _get_wiki_dump_dl_url(_WIKI_DP_CATEGORYLINKS, **kwargs)
+    return _parse_wiki_sql_dump(
+        dump_url, _parse_fx_categorylinks_dump, **kwargs
+    )
 
 
-def _parse_fx_categories_linking_map(el):
-    if el[6] not in ("page", "subcat"):
+def _parse_fx_categorylinks_dump(el):
+    if el[6] not in (WIKI_CL_TYPE_CATEGORY, WIKI_CL_TYPE_PAGE):
         return
-    sourceid = int(el[0])
+    cl_type = el[6]
+    sourceid = el[0]
     target = fix_text(el[1])
-    return sourceid, target
+    return cl_type, sourceid, target
 
 
-def _get_wiki_dump_dl_url(l, t, v):
+def _get_wiki_dump_dl_url(t, **kwargs):
+    _kwargs = {**config, **kwargs}
+    l = _kwargs["lang"]
+    v = _kwargs["version"]
     n = _WIKI_DL_NAME.format(l=l, t=t, v=v)
+    dp = _kwargs["disk_path"]
+    if dp:
+        path = dp.joinpath(n)
+        if path.exists():
+            return path
     return URL(_WIKI_DL_PATH.format(l=l, n=n, v=v))
 
 
-def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx):
-    with ProcessPoolExecutor(max_workers=4) as executor:
-        fs = []
-        mode = "rb"
-        compress_bytes_read = 0
-        if data.contains(wiki_sql_dump_url.name):
-            compress_obj = data.open(wiki_sql_dump_url.name, mode=mode)
-            content_len = data.force_get(wiki_sql_dump_url.name).stat().st_size
-        else:
-            compress_obj = http_open(str(wiki_sql_dump_url), mode=mode)
-            content_len = int(
-                compress_obj.response.headers.get("content-length")
-            )
+def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
+    _kwargs = {**config, **kwargs}
+    disk_path = _kwargs["disk_path"]
+    keep_files = _kwargs["keep_files"]
+    max_workers = _kwargs["max_workers"]
+    verbose = _kwargs["verbose"]
+    fs = []
+    compress_bytes_read = 0
+    dump_name = wiki_sql_dump_url.name
+    msg.text(f"-> {dump_name}", show=verbose)
+    compress_obj, content_len = _get_wiki_dump_obj(wiki_sql_dump_url, verbose)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        tqdm_disable = not verbose
+        tqdm_kwargs = {
+            "unit": "B",
+            "unit_scale": True,
+            "unit_divisor": 1024,
+            "disable": tqdm_disable,
+        }
         with tqdm(
-            desc=f"Parsing {wiki_sql_dump_url.name}",
-            total=content_len,
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as pbar, compression_wrapper(compress_obj, mode) as decompress_obj:
+            desc="parse", total=content_len, **tqdm_kwargs,
+        ) as pbar, compression_wrapper(compress_obj, "rb") as decompress_obj:
             for line in decompress_obj:
                 task = partial(_parsing_task, parse_fx=parse_fx)
                 fs.append(executor.submit(task, line.decode("latin-1")))
                 compress_bytes = compress_obj.tell()
                 pbar.update(compress_bytes - compress_bytes_read)
                 compress_bytes_read = compress_bytes
+            if keep_files:
+                compress_obj.seek(0)
+                file_path = disk_path.joinpath(dump_name)
+                if not file_path.exists() or file_path.stat().st_size == 0:
+                    with msg.loading("save"), file_path.open("wb+") as fd:
+                        for data in compress_obj:
+                            fd.write(data)
             compress_obj.close()
-        d = {}
-        with tqdm(desc="Collecting", total=len(fs)) as pbar:
+        with tqdm(desc="wrap up", total=len(fs), disable=tqdm_disable) as pbar:
             for f in as_completed(fs):
                 for res in f.result():
                     if not res:
                         continue
-                    k, v = res
-                    if k in d:
-                        if not isinstance(d[k], list):
-                            d[k] = [d[k]]
-                        d[k].append(v)
-                    else:
-                        d[k] = v
+                    yield res
                 pbar.update(1)
-        return d
+    msg.good(dump_name, show=verbose)
+
+
+def _get_wiki_dump_obj(wiki_sql_dump_url, verbose):
+    if isinstance(wiki_sql_dump_url, Path):
+        if not wiki_sql_dump_url.exists():
+            raise FileNotFoundError
+        compress_obj = wiki_sql_dump_url.open("rb")
+        content_len = wiki_sql_dump_url.stat().st_size
+        if content_len == 0:
+            raise FileNotFoundError
+        msg.text(f"found locally at {wiki_sql_dump_url}", show=verbose)
+    elif isinstance(wiki_sql_dump_url, URL):
+        compress_obj = http_open(str(wiki_sql_dump_url), mode="rb")
+        content_len = int(compress_obj.response.headers.get("content-length"))
+        msg.text(f"download from: {wiki_sql_dump_url}", show=verbose)
+    else:
+        raise ValueError
+    return compress_obj, content_len
 
 
 def _parsing_task(line, parse_fx):

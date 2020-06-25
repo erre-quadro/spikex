@@ -140,6 +140,7 @@ benchmarks/
 
 # profile
 *.prof
+prof/
 
 # resources
 resources/

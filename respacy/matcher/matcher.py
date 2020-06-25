@@ -383,10 +383,10 @@ def _finalize_pattern_spec(spec):
                 anchor_gs.add(i + 1)
         regex = "".join([_XP_TOKEN_START, *(x[0] for x in xps)])
         flags = re.U | re.M
-        if attr in ["LENGTH", "LOWER"]:
+        if attr in ("LENGTH", "LOWER"):
             flags |= re.I
         final_spec[attr] = (re.compile(regex, flags=flags), is_extension)
-    sort_by = lambda x: x[0] not in ["LEMMA", "LOWER", "TEXT"]
+    sort_by = lambda x: x[0] not in ("LEMMA", "LOWER", "TEXT")
     final_spec = {k: v for k, v in sorted(final_spec.items(), key=sort_by)}
     return (final_spec, anchor_gs)
 

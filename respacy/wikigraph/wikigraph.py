@@ -1,343 +1,177 @@
-import json
-from collections import Counter
+from itertools import combinations, product
+from typing import Iterable, Union
 
-from tqdm import tqdm
+from igraph import Graph, Vertex
 
-from respacy import data
+from .dumptools import WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE
 
-from .. import data
-from . import dumptools
+KIND_CATEGORY = WIKI_NS_KIND_CATEGORY
+KIND_PAGE = WIKI_NS_KIND_PAGE
 
-__all__ = "WikiGraph"
+VertexType = Union[Vertex, int]
 
 
 class WikiGraph:
-    def __init__(self, lang="en", version="latest", roots=None):
-        self.lang = lang
-        self.version = version
-        self.roots = roots
-        self._edges = {}
-        self._redirects = {}
-        self._vertex2page = {}
-        self._vertex2category = {}
-        self.__page2vertex = {}
-        self.__category2vertex = {}
-        self._setup_graph()
-        # self._filter_by(roots)
-        # self._filter_by([7345184])
-        # self._filter_by([692903, 871525])
-        # self._get_main_topics()
+    def __init__(self, graph_name):
+        graph_path = f"{graph_name}.picklez"
+        self.g = Graph.Read(graph_path)
 
     @property
     def leaves(self):
-        return self._vertex2page.keys()
+        return self.g.vs.select(kind_eq=KIND_PAGE)
 
-    def get_parents(self, vertex: int):
-        if vertex in self._redirects:
-            vertex = self._redirects[vertex]
-        if vertex not in self._edges:
-            return []
-        return [int(p) for p in self._edges[vertex].keys()]
+    def get_vertex(self, vertex: VertexType):
+        return self.g.vs[vertex] if isinstance(vertex, int) else vertex
 
-    def get_children(self, vertex: int):
-        if vertex not in self._edges_reverse:
-            return []
-        return [int(c) for c in self._edges_reverse[vertex]]
+    def get_main_vertex(self, vertex: VertexType):
+        return self.get_redirect(vertex) or self.get_vertex(vertex)
 
-    def get_title(self, vertex: int):
-        if vertex in self._vertex2category:
-            return self._vertex2category[vertex]
-        if vertex in self._vertex2page:
-            return self._vertex2page[vertex]
+    def is_redirect(self, vertex: VertexType):
+        v = self.g.vs[vertex] if isinstance(vertex, int) else vertex
+        return len(v["redirect"]) > 0
 
-    def get_lca(self, vertices, max_depth=2):
-        cp_map = {}
-        depth = max_depth
-        check_vx = {vx: {vx} for vx in vertices}
-        while depth >= 0:
-            for vx in vertices:
-                if vx not in cp_map:
-                    cp_map[vx] = set()
-                next_check = set()
-                for v in check_vx[vx]:
-                    p = self.get_parents(v)
-                    if not p:
-                        continue
-                    cp_map[vx].update(p)
-                    next_check.update(p)
-                check_vx[vx] = next_check
-            depth -= 1
-        return set.intersection(*[p for p in cp_map.values()])
+    def get_redirect(self, vertex: VertexType):
+        vx = self.get_vertex(vertex)
+        if self.is_redirect(vx):
+            return self.g.vs.find(vx["redirect"])
 
-    def get_path(self, start, end):
-        seen = set()
-        next_ps = set([end])
-        walks = {end: [end]}
-        while next_ps is not None and len(next_ps) > 0:
-            this_p = next_ps.pop()
-            if this_p in seen:
-                continue
-            seen.add(this_p)
-            this_p_cn = self.get_children(this_p)
-            if not this_p_cn:
-                del walks[this_p]
-                continue
-            if start in this_p_cn:
-                return walks[this_p]
-            for vxc in this_p_cn:
-                walks[vxc] = [*walks[this_p]]
-                walks[vxc].append(vxc)
-            del walks[this_p]
-            next_ps.update(set(this_p_cn))
-        return []
-
-    def are_redirects(self, v1, v2):
+    def are_redirects(self, v1: VertexType, v2: VertexType):
+        vx1 = self.get_vertex(v1)
+        vx2 = self.get_vertex(v2)
         return (
-            v1 in self._redirects
-            and self._redirects[v1] == v2
-            or v2 in self._redirects
-            and self._redirects[v2] == v1
-            or v1 in self._redirects
-            and v2 in self._redirects
-            and self._redirects[v1] == self._redirects[v2]
-        )
-
-    @property
-    def _page2vertex(self):
-        if not self.__page2vertex:
-            self.__page2vertex.update(
-                {v: k for k, v in self._vertex2page.items()}
+            vx1["redirect"] == vx2["name"]
+            or vx2["redirect"] == vx1["name"]
+            or (
+                vx1["redirect"]
+                and vx2["redirect"]
+                and vx1["redirect"] == vx2["redirect"]
             )
-        return self.__page2vertex
+        )
 
-    @property
-    def _category2vertex(self):
-        if not self.__category2vertex:
-            self.__category2vertex.update(
-                {v: k for k, v in self._vertex2category.items()}
+    def get_parents(self, vertex: VertexType):
+        vx = self.get_main_vertex(vertex)
+        return vx.neighbors(mode="OUT")
+
+    def get_children(
+        self,
+        vertex: VertexType,
+        only_cats: bool = None,
+        only_pages: bool = None,
+    ):
+        vx = self.get_main_vertex(vertex)
+        if only_cats or only_pages:
+            return [
+                child
+                for child in vx.neighbors(mode="IN")
+                if (only_cats and child["kind"] == KIND_CATEGORY)
+                or (only_pages and child["kind"] == KIND_PAGE)
+            ]
+        return vx.neighbors(mode="IN")
+
+    def get_siblings(
+        self,
+        vertex: VertexType,
+        only_cats: bool = None,
+        only_pages: bool = None,
+    ):
+        return [
+            child
+            for parent in self.get_parents(vertex)
+            for child in self.get_children(
+                parent, only_cats=only_cats, only_pages=only_pages
             )
-        return self.__category2vertex
+        ]
 
-    @property
-    def _dumpname(self):
-        return f"{self.lang}wiki_{self.version}"
+    def get_neighborhood(
+        self,
+        vertices: Union[Iterable[VertexType], VertexType],
+        order: int = None,
+        only_cats: bool = None,
+        only_pages: bool = None,
+    ):
+        nbh = self.g.neighborhood(vertices=vertices, order=order or 1)
+        filter_func = lambda x: (
+            (only_cats is None or self.g.vs[x]["kind"] == KIND_CATEGORY)
+            and (only_pages is None or self.g.vs[x]["kind"] == KIND_PAGE)
+        )
+        if not only_cats and not only_pages:
+            return nbh
+        if any(not isinstance(el, list) for el in nbh):
+            return [el for el in nbh if filter_func(el)]
+        return [[nb for nb in el if filter_func(nb)] for el in nbh]
 
-    def _dump(self):
-        for obj, fn in (
-            (self._edges, "edges"),
-            (self._redirects, "redirects"),
-            (self._vertex2page, "vertex2page"),
-            (self._edges_reverse, "edges_reverse"),
-            (self._vertex2category, "vertex2category"),
-        ):
-            with data.open(f"{fn}.json", "w+", self._dumpname) as fd:
-                json.dump(obj, fd, ensure_ascii=False, indent=0)
-
-    def _setup_graph(self):
-        self._vertex2page = _load_from_disk(
-            "vertex2page",
-            folder=self._dumpname,
-            fail_callback=lambda: dumptools.get_pageid_title_map(
-                self.lang, self.version
-            ),
-        )
-        self._vertex2category = _load_from_disk(
-            "vertex2category",
-            folder=self._dumpname,
-            fail_callback=lambda: dumptools.get_categoryid_title_map(
-                self.lang, self.version
-            ),
-        )
-        self._redirects = _load_from_disk(
-            "redirects",
-            folder=self._dumpname,
-            parse_int=True,
-            fail_callback=lambda: {
-                k: self._page2vertex[v]
-                for k, v in dumptools.get_redirectid_target_map(
-                    self.lang, self.version
-                ).items()
-                if v in self._page2vertex
-            },
-        )
-        self._edges = _load_from_disk(
-            "edges",
-            folder=self._dumpname,
-            parse_int=True,
-            fail_callback=lambda: {
-                sourceid: {
-                    self._category2vertex[c]: None
-                    for c in (
-                        categories
-                        if isinstance(categories, list)
-                        else [categories]
-                    )
-                    if c in self._category2vertex
-                }
-                for sourceid, categories in dumptools.get_categories_linking_map(
-                    self.lang, self.version
-                ).items()
-            },
-        )
-
-        self._edges_reverse = _load_from_disk(
-            "edges_reverse", folder=self._dumpname, parse_int=True,
-        )
-
-    def _fix_edges_hierarchy(self):
-        def have_kindred(root, parent, children):
-            seen = set()
-            next_ps = set([parent])
-            while next_ps is not None and len(next_ps) > 0:
-                this_p = next_ps.pop()
-                if this_p in seen:
+    def get_neighborcats(self, vertices: Union[Iterable[VertexType], VertexType], large: bool = None):
+        if not isinstance(vertices, Iterable):
+            vertices = [vertices]
+        nbcats = []
+        for vertex in vertices: # type: ignore
+            vx_nbcats = set()
+            for child in self.get_children(vertex):
+                vx_nbcats.add(child.index)
+            for parent in self.get_parents(vertex):
+                vx_nbcats.add(parent.index)
+                if not large:
                     continue
-                seen.add(this_p)
-                this_p_cn = self.get_children(parent)
-                if not this_p_cn:
-                    continue
-                if root in this_p_cn:
-                    continue
-                intersect = set.intersection(set(this_p_cn), set(children))
-                if len(intersect) > 0:
-                    return True
-                next_ps.update(set(this_p_cn))
+                for child in self.get_children(parent, only_cats=True):
+                    vx_nbcats.add(child.index)
+                for grand_parent in self.get_parents(parent):
+                    vx_nbcats.add(grand_parent.index)
+            nbcats.append(vx_nbcats)
+        return nbcats
 
-        edges = {}
-        for child, parents in tqdm(self._edges.items()):
-            parents = set(parents.keys())
-            new_parents = {*parents}
-            for p in parents:
-                cn = new_parents.difference(set([p]))
-                if not have_kindred(child, p, cn):
-                    continue
-                new_parents.remove(p)
-            new_ps = {new_p: None for new_p in new_parents}
-            edges.setdefault(child, new_ps)
-        self._edges = edges
 
-        # for child, parents in {**self._edges}.items():
-        #     if self.get_children(child):
-        #         continue
-        #     for parent in {*parents.keys()}:
-        #         if len(self.get_children(parent)) < 10000:
-        #             continue
-        #         del self._edges[child][parent]
-        #         print(self.get_title(parent), "FROM", self.get_title(child))
+    def get_most_similar(
+        self,
+        vs1: Iterable[VertexType],
+        vs2: Iterable[VertexType],
+        min_similarity=None,
+    ):
+        th = min_similarity or 0.0
+        pairs = list(product(vs1, vs2))
+        sims = self.g.similarity_dice(pairs=pairs)
+        return [
+            (
+                el1 if isinstance(el1, int) else el1.index,
+                el2 if isinstance(el2, int) else el2.index,
+                sim,
+            )
+            for (el1, el2), sim in zip(pairs, sims)
+            if sim > th
+        ]
 
-        with data.open(f"edges_fix.json", "w+", self._dumpname) as fd:
-            json.dump(self._edges, fd, ensure_ascii=False, indent=0)
-
-    def _get_first_super_parents(self, start, ends):
+    def get_clusters(
+        self, vertices: Iterable[VertexType], min_similarity: float = None,
+    ):
+        linkage = {}
+        th = min_similarity or 0.0
+        pairs = list(combinations(vertices, 2))
+        sims = self.g.similarity_dice(pairs=pairs)
+        for (el1, el2), sim in zip(pairs, sims):
+            if sim <= th:
+                continue
+            src = el1 if isinstance(el1, int) else el1.index
+            dst = el2 if isinstance(el2, int) else el2.index
+            mts = linkage.setdefault(src, {})
+            mts.setdefault(dst)
         seen = set()
-        ends = set(ends)
-        next_cn = set([start])
-        while next_cn is not None and len(next_cn) > 0:
-            this_c = next_cn.pop()
-            if this_c in seen:
-                continue
-            seen.add(this_c)
-            this_c_ps = self.get_parents(this_c)
-            if not this_c_ps:
-                continue
-            intersect = ends.intersection(set(this_c_ps))
-            if len(intersect) > 0:
-                return intersect
-            next_cn.update(set(this_c_ps))
-        return []
-
-    def _hidden_categories(self):
-        return set(self.get_children(15961454))
-
-    def _filter_by(self, vertices):
-        v2c = {}
-        edges = {}
-        edges_reverse = {}
-        seen = set()
-        next_subs = set(vertices)
-        # Avoid to include `Hidden categories`
-        # and any higher category than vertices
-        bad_boys = set([15961454])
-        bad_boys = set(
-            [pvx for pvx in self.get_children(7345184) if pvx not in vertices]
+        clusters = []
+        for el1, mts in linkage.items():
+            cluster = set([el1])
+            adding = set(mts.keys())
+            while adding and len(adding) > 0:
+                el2 = adding.pop()
+                if el2 in seen:
+                    continue
+                seen.add(el2)
+                cluster.add(el2)
+                if el2 not in linkage:
+                    continue
+                adding.update(linkage[el2].keys())
+            clusters.append(cluster)
+        vxs = set(
+            vertices
+            if any(isinstance(v, int) for v in vertices)
+            else [v.index for v in vertices]  # type: ignore
         )
-        hidden_cats = self._hidden_categories()
-        while next_subs is not None and len(next_subs) > 0:
-            vx = next_subs.pop()
-            if vx in seen:
-                continue
-            seen.add(vx)
-            # if vx in bad_boys:
-            #     continue
-            # vx_ps = set(self.get_parents(vx))
-            # if len(bad_boys.intersection(vx_ps)) > 0:
-            #     bad_boys.add(vx)
-            #     continue
-            vxt = self.get_title(vx)
-            if not vxt:
-                continue
-            children = self.get_children(vx)
-            if not children:
-                continue
-            v2c.setdefault(vx, vxt)
-            reverse = edges_reverse.setdefault(vx, {})
-            for vxc in children:
-                if any(
-                    vxc_p in hidden_cats for vxc_p in self.get_parents(vxc)
-                ):
-                    continue
-                # if vxc in bad_wiki_cats:
-                #     continue
-                reverse.setdefault(vxc)
-                ps = edges.setdefault(vxc, {})
-                ps.setdefault(vx)
-                next_subs.add(vxc)
-        if not edges:
-            print("Empty")
-            return
-        self._edges = {k: v for k, v in edges.items() if v}
-        self._edges_reverse = {k: v for k, v in edges_reverse.items() if v}
-        self._vertex2category = v2c
-        self.__page2vertex = {}
-        self.__category2vertex = {}
-        self._dump()
-
-    def _get_main_topics(self):
-        super_parent = 7345184
-        main_topics = self.get_children(super_parent)
-        for topic in main_topics:
-            for subtopic in self.get_children(topic):
-                if subtopic not in self._vertex2category:
-                    continue
-                count = 0
-                counter = Counter()
-                for parent in self.get_parents(subtopic):
-                    if parent not in self._vertex2category:
-                        continue
-                    topics = self._get_first_super_parents(parent, main_topics)
-                    if not topics:
-                        continue
-                    count += len(topics)
-                    counter.update(topics)
-                percent = [
-                    (self.get_title(t), c * 100 / count)
-                    for t, c in counter.most_common()
-                ]
-                print(self.get_title(topic), self.get_title(subtopic), percent)
-
-
-def _load_from_disk(filename, folder=None, parse_int=None, fail_callback=None):
-    fn = filename if filename.endswith(".json") else (filename + ".json")
-    if not data.contains(fn, folder):
-        if not fail_callback:
-            return
-        obj = fail_callback()
-        with data.open(f"{fn}", "w+", folder) as fd:
-            json.dump(obj, fd, ensure_ascii=False, indent=0)
-        return obj
-    with data.open(f"{fn}", "r", folder) as fd:
-        keys_as_int_hook = lambda x: {
-            int(k): int(v) if isinstance(v, str) and parse_int else v
-            for k, v in x
-        }
-        return json.load(fd, object_pairs_hook=keys_as_int_hook)
+        singles = [{v} for v in set.difference(vxs, seen)]
+        return clusters + singles

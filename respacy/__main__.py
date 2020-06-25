@@ -1,10 +1,16 @@
+from respacy.cli.evaluate import evaluate_clusters
+
 if __name__ == "__main__":
     import typer
     import sys
     from wasabi import msg
-    from .cli import profile
+    from . import cli
 
-    commands = {"profile": profile}
+    commands = {
+        "profile": cli.profile,
+        "make-wikigraph": cli.make_wikigraph,
+        "evaluate-clusters": evaluate_clusters,
+    }
 
     if len(sys.argv) == 1:
         msg.info("Available commands", ", ".join(commands), exits=1)
