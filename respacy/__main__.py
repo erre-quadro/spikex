@@ -1,5 +1,3 @@
-from respacy.cli.evaluate import evaluate_clusters
-
 if __name__ == "__main__":
     import typer
     import sys
@@ -9,7 +7,6 @@ if __name__ == "__main__":
     commands = {
         "profile": cli.profile,
         "make-wikigraph": cli.make_wikigraph,
-        "evaluate-clusters": evaluate_clusters,
     }
 
     if len(sys.argv) == 1:

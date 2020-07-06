@@ -33,7 +33,8 @@ def get_entities_and_clusters(text):
             ent_titles = []
             name = page["name"]
             title = page["title"]
-            wiki_span["label"] = title
+            if "label" not in wiki_span:
+                wiki_span["label"] = title
             for ent in ents:
                 ent_title = ent["title"]
                 ent_titles.append(ent_title)
@@ -41,6 +42,7 @@ def get_entities_and_clusters(text):
                     clusters[ent_title] = 0
                 clusters[ent_title] += 1
             chunk_ents.append((name, title, ent_titles))
+            break
         wiki_spans.append(wiki_span)
         if chunk.text in wiki_ents:
             continue

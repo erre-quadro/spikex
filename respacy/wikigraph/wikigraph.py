@@ -100,11 +100,15 @@ class WikiGraph:
             return [el for el in nbh if filter_func(el)]
         return [[nb for nb in el if filter_func(nb)] for el in nbh]
 
-    def get_neighborcats(self, vertices: Union[Iterable[VertexType], VertexType], large: bool = None):
+    def get_neighborcats(
+        self,
+        vertices: Union[Iterable[VertexType], VertexType],
+        large: bool = None,
+    ):
         if not isinstance(vertices, Iterable):
             vertices = [vertices]
         nbcats = []
-        for vertex in vertices: # type: ignore
+        for vertex in vertices:  # type: ignore
             vx_nbcats = set()
             for child in self.get_children(vertex):
                 vx_nbcats.add(child.index)
@@ -116,9 +120,8 @@ class WikiGraph:
                     vx_nbcats.add(child.index)
                 for grand_parent in self.get_parents(parent):
                     vx_nbcats.add(grand_parent.index)
-            nbcats.append(vx_nbcats)
+            nbcats.append(list(vx_nbcats))
         return nbcats
-
 
     def get_most_similar(
         self,

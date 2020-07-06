@@ -6,7 +6,7 @@ from respacy.entity_linking.wikientx import WikiEntX
 @pytest.mark.slow()
 def test_wiki_entx(nlp):
     wiki_entx = WikiEntX()
-    doc = wiki_entx(nlp(open("resources/sample.txt").read()), stopwords=True)
+    doc = wiki_entx(nlp(open("resources/sample5.txt").read()), stopwords=True)
     res = {}
     for chunk in doc._.wiki_chunks:
         if chunk.text in res:

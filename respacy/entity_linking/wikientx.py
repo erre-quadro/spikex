@@ -1,3 +1,5 @@
+from collections import Counter
+from itertools import chain
 from typing import Union
 
 import regex as re
@@ -6,8 +8,6 @@ from spacy.tokens import Doc, Span, Token
 
 from ..matcher import Matcher
 from ..wikigraph import WikiGraph
-from itertools import combinations, chain
-from collections import Counter
 
 __all__ = ["WikiEntX"]
 
@@ -36,20 +36,29 @@ class WikiEntX:
 
     def __call__(self, source: Union[Doc, Span], stopwords=None):
         pages_data = self._extract_pages_data(source, stopwords)
-        cand_ents = self._get_cand_ents(pages_data)
+        cand_ents = self._get_cand_ents_new(pages_data)
         if not cand_ents:
             return source
-        # _expand_cand_ents(cand_ents, pages_data)      
-        print("\n".join([self._wg.g.vs[e]["title"] + "/" + str(c) for e, c in sorted(cand_ents.items(), key=lambda x: x[1])]))
+        # _expand_cand_ents(cand_ents, pages_data)
+        # print(
+        #     "\n".join(
+        #         [
+        #             self._wg.g.vs[e]["title"] + "/" + str(c)
+        #             for e, c in sorted(cand_ents.items(), key=lambda x: x[1])
+        #         ]
+        #     )
+        # )
         doc = source if isinstance(source, Doc) else source.doc
         chunks = []
         for data in pages_data:
             pages = data["pages"]
-            matching_pages = _get_matching_pages(cand_ents, pages)
+            matching_pages = self._get_matching_pages(cand_ents, pages)
             ents = [
                 (
                     self._wg.get_vertex(v),
-                    [self._wg.get_vertex(e) for e in es if e in pages[v][0]],
+                    [
+                        self._wg.get_vertex(e) for e in es
+                    ],  # if e in pages[v][0]],
                     s,
                 )
                 for v, es, s in matching_pages
@@ -57,9 +66,17 @@ class WikiEntX:
             ]
             if not ents:
                 continue
+            # print(
+            #     "\n".join(
+            #         [
+            #             v["title"] + "/" + str(s)
+            #             for v, e, s in ents
+            #         ]
+            #     )
+            # )
             ents.sort(key=lambda x: x[2], reverse=True)
             for span in data["spans"]:
-                chunks.append((span, ents))
+                chunks.append((span, [ents[0]]))
         key2ents = {}
         matcher = Matcher(doc.vocab)
         chunks.sort(key=lambda x: len(x[0]), reverse=True)
@@ -109,12 +126,11 @@ class WikiEntX:
                     rejects.add(main_vx.index)
                     continue
                 nfactor += 1
-                pages.setdefault(vx.index, ())
-            nbh = self._wg.get_neighborcats(pages)
-            for page, nb in zip(pages, nbh):
-                nbc = self._wg.get_neighborcats(nb, large=True)
-                # nbc = self._wg.get_neighborhood(nb, order=2)
-                pages[page] = (set(nb), set(chain.from_iterable(nbc)))
+                pages.setdefault(vx.index, [])
+            # nbh = self._wg.get_neighborcats(pages)
+            # for page, nb in zip(pages, nbh):
+            #     nbc = self._wg.get_neighborcats(nb, large=True)
+            #     pages[page] = (set(nb), set(chain.from_iterable(nbc)))
             span_score = (1 / nfactor) if nfactor else 0
             data.setdefault("score", span_score)
         return pages_data.values()
@@ -155,192 +171,88 @@ class WikiEntX:
             ]
             cands.update(good)
         return {e: 1 for e in cands}
-        # return {e: c for e, c in most_common.items() if e in cands}
-        # for e, c in {**most_common}.items():
-        #     if e not in refs:
-        #         del most_common[e]
+
+    def _get_cand_ents_new(self, pages_data):
+        score_th = 0.25
+        curr_score = 1.0
+        cand_ents = set()
+        counter = Counter()
+        while curr_score >= score_th:
+            layer_ents = []
+            for data in pages_data:
+                if data["score"] != curr_score:
+                    continue
+                pages = data["pages"]
+                vertices = list(pages)
+                nbcs = self._wg.get_neighborcats(vertices, large=True)
+                for v, nb in zip(vertices, nbcs):
+                    if not pages[v]:
+                        pages[v].extend(nb)
+                    if len(cand_ents) == 0:
+                        layer_ents.extend(nb)
+                        continue
+                    common = set.intersection(cand_ents, set(nb))
+                    if len(common) == 0:
+                        continue
+                    layer_ents.extend(nb)
+            curr_score /= 2
+            counter.update(
+                layer_ents
+                if len(cand_ents) == 0
+                else [e for e in layer_ents if e in cand_ents]
+            )
+            most_common = counter.most_common()
+            if not most_common:
+                continue
+            best = most_common[0]
+            best_count = best[1]
+            for e, c in most_common:
+                if c >= best_count * curr_score / 3:
+                    continue
+                del counter[e]
+            nbcs = self._wg.get_neighborcats(counter)
+            counter.update(chain.from_iterable(nbcs))
+            cand_ents.update(counter)
+        return counter
+
+        #     if all(c == 1 for c in counter.values()):
+        #         cand_ents.update(layer_ents)
         #         continue
-        #     for ref in refs[e]:
-        #         if most_common[ref] >= c:
+        #     # good_ents = set()
+        #     for e, c in {**counter}.items():
+        #         if c > 1:
+        #             # if e not in ents_seen:
+        #             # good_ents.add(e)
         #             continue
-        #         most_common[ref] = c
-        # return most_common
-
-
-        # print("\n".join([f"{self._wg.g.vs[c]['title']}: {v}" for c, v in sorted(cands, key=lambda x: x[1])]))
-        # cands = (e[0] for e in counter.most_common())
-        # clusters = self._wg.get_clusters(cands, min_similarity=0.01)
-        # for cluster in (c for c in clusters if len(c) == len(max(clusters, key=len))):
-        #     counter.update(cluster)
-        # return {e: c for e, c in counter.most_common()}
-
-        # refs = {}
-        # vertices = [e[0] for e in counter.most_common()]
-        # for i, nbh in enumerate(seeds):
-        #     e = vertices[i]
-        #     for nb in nbh:
-        #         refs_nb = refs.setdefault(nb, [])
-        #         refs_nb.append(e)
-        #         refs_e = refs.setdefault(e, [])
-        #         refs_e.append(nb)
-        # cands = set()
-        # for el, cn in zip(
-        #     seeds, self._wg.g.similarity_dice(vertices=vertices)
-        # ):
-        #     good = [
-        #         vertices[i]
-        #         for i, e in enumerate(cn)
-        #         if e > 0.01
-        #         and vertices[i] != el
-        #         and el not in refs[vertices[i]]
-        #         and vertices[i] not in refs[el]
-        #     ]
-        #     cands.update(good)
-        # return {e: c for e, c in counter.most_common() if e in cands}
-        
-        # for nbh in self._wg.get_neighborhood(cands):
-        #     cands.update(nbh)
-        # for seed, nbh in zip(
-        #     seeds, self._wg.get_neighborhood(seeds, order=3)
-        # ):
-        #     seeds[seed] = nbh
-        # pre_cands = {}
-        # for s1, s2 in combinations(seeds, 2):
-        #     nbh1 = set(seeds[s1])
-        #     nbh2 = set(seeds[s2])
-        #     common = set.intersection(nbh1, nbh2)
-        #     # if len(common) == 0:
-        #     #     continue
-        #     pre_cands.update({c: 1 for c in common})
-        #     pre_cands.update({c: 0.25 for c in set.union(nbh1, nbh2)})
-        #     # print(
-        #     #     self._wg.get_vertex(s1)['title'], "->", self._wg.get_vertex(s2)['title'], "==>",
-        #     #     ", ".join(
-        #     #         [
-        #     #             f"{self._wg.get_vertex(cl)['title']} [{self._wg.get_vertex(cl)['kind']}]"
-        #     #             for cl in common
-        #     #         ]
-        #     #     ),
-        #     # )
-
-        # cands = {c: v for c, v in pre_cands.items() if self._wg.g.vs[c]["kind"] == KIND_CATEGORY}
-        # clusters = self._wg.get_clusters(pre_cands, min_similarity=0)
-        # cands = {}
-        # for cluster in (c for c in clusters if len(c) == len(max(clusters, key=len))):
-        #     cands.update({c: pre_cands[c] for c in cluster})
-
-        # clusters = self._wg.get_clusters(cands)
-        # maxlen = len(max(clusters, key=len))
-        # # cands.clear()
-        # print(clusters)
-        # for cluster in (c for c in clusters if len(c) == maxlen):
-        #     cands.update(cluster)
-        #     print(
-        #         "==>", ", ".join(
-        #             [
-        #                 f"{self._wg.get_vertex(cl)['title']} [{self._wg.get_vertex(cl)['kind']}]"
-        #                 for cl in cluster
-        #             ]
-        #         )
-        #     )
-
-        # nrounds = 2
-        # while nrounds > 0:
-        #     print(
-        #         nrounds, "==>", ", ".join(
-        #             [
-        #                 f"{self._wg.get_vertex(c)['title']} [{self._wg.get_vertex(c)['kind']}]"
-        #                 for c in cands
-        #             ]
-        #         )
-        #     )
-        #     for nbh in self._wg.get_neighborhood(cands, order=2, only_cats=True):
-        #         cands.update(nbh)
-        #     clusters = self._wg.get_clusters(cands)
-        #     # for cluster in clusters:
-        #     #     print(
-        #     #         nrounds, "==>", ", ".join(
-        #     #             [
-        #     #                 f"{self._wg.get_vertex(c)['title']} [{self._wg.get_vertex(c)['kind']}]"
-        #     #                 for c in cluster
-        #     #             ]
-        #     #         )
-        #     #     )
-        #     maxlen = len(max(clusters, key=len))
-        #     new_cands = set()
-        #     for cluster in (c for c in clusters if len(c) == maxlen):
-        #         new_cands.update(cluster)
-        #     cands.clear()
-        #     cands.update(new_cands)
-        #     nrounds -= 1
-
-        # print(
-        #     ", ".join(
-        #         [
-        #             f"{self._wg.get_vertex(c)['title']} [{self._wg.get_vertex(c)['kind']}]"
-        #             for c in cands
-        #         ]
-        #     )
-        # )
-
-        # for data1, data2 in combinations(pages_data, 2):
-        #     score1 = data1["score"]
-        #     score2 = data2["score"]
-        #     if score1 < th or score2 < th:
-        #         continue
-        #     score = min(score1, score2)
-        # for (v1, ps1, rs1), (v2, ps2, rs2) in product(
-        #     data1["pages"], data2["pages"]
-        # ):
-        #     if self._wg.are_redirects(v1, v2):
-        #         continue
-        #     for p in chain(ps1, ps2):
-        #         cands[p] = 1
-        # print("->", v1["title"])
-        # common = set.intersection(ps1, ps2)
-        # for p in common:
-        #     cands[p] = 1
-        # for p in chain(ps1, ps2):
-        #     if p in common or p in cands:
-        #         continue
-        #     cands[p] = 1 * score
-        # rs1_set = set(rs1.keys())
-        # rs2_set = set(rs2.keys())
-        # for el in set.intersection(rs1_set, rs2_set):
-        #     p1 = rs1[el]
-        #     p2 = rs2[el]
-        #     for e in (p1, p2):
-        #         if e in cands:
+        #         del counter[e]
+        #         if e not in cand_ents:
         #             continue
-        #         cands[e] = 1
-        #     cands[el] = 0.5 * score
-        # if len(cands) == 0:
-        #     return
-        # max_score = 0
-        # ents = []
-        # for el in cands:
-        #     print("->", el["title"])
-        # clusters = sorted(
-        #     self._wg.get_clusters(cands.keys(), min_similarity=0.01),
-        #     key=lambda x: len(x),
-        # )
-        # for c in clusters:
-        #     print(
-        #         "-->",
-        #         len(c),
-        #         ", ".join([f"{e['title']} [{cands[e]}]" for e in c]),
-        #     )
-        #     print(sum(cands[e] for e in c))
-        # while clusters:
-        #     cluster = clusters.pop()
-        #     score = len(cluster)  # sum(cands[e] for e in cluster)
-        #     if score > max_score:
-        #         ents = []
-        #         max_score = score
-        #     if max_score == score:
-        #         ents.extend(cluster)
-        #         continue
-        # return {c: cands[c] for c in ents}
+        #         cand_ents.remove(e)
+        #     # nbcs = self._wg.get_neighborcats(good_ents)
+        #     # counter.update(chain.from_iterable(nbcs))
+        #     # cand_ents.update(counter)
+        # return {e: c for e, c in counter.most_common() if c > 1}
+
+    def _get_matching_pages(self, cand_ents, pages):
+        matching_pages = []
+        ents = set(cand_ents)
+        for v, nbs in pages.items():
+            nbs_set = set(nbs or self._wg.get_neighborcats(v, large=True)[0])
+            common = set.intersection(ents, set(nbs_set))
+            common_count = len(common)
+            if common_count == 0:
+                continue
+            # score = max(cand_ents[e] for e in common)  # sum(cand_ents[e] for e in common) / len(nbs_set) ** 0.8
+            # score = sum(cand_ents[e] for e in common) * common_count / len(nbs_set) ** 0.8
+            score = common_count / len(nbs_set) ** 0.8
+            matching_page = (v, common, score)
+            matching_pages.append(matching_page)
+        counts = cand_ents.values()
+        emin = min(counts)
+        emax = max(counts)
+        # for mp in sorted(matching_pages, key=lambda x: x[2], reverse=True):
+        #     print("==>", self._wg.get_vertex(mp[0])["title"], "-", mp[2], ":", len(mp[1]), " - avg:", (emin+emax)/2)
+        return matching_pages
 
 
 def _normalize_title(title: str):
@@ -441,38 +353,6 @@ def _expand_cand_ents(cand_ents, pages_data):
     return cand_ents
 
 
-# def _get_matching_pages(cand_ents, pages):
-#     matching_pages = []
-#     ents = set(cand_ents.keys())
-#     for (v, es, rs) in pages:
-#         score = 0.0
-#         new_ents = set()
-#         match_ents = set()
-#         rs_set = set(rs.keys())
-#         for l, d in ((set([v]), 1 / 2), (es, 1), (rs_set, 3)):
-#             match = set.intersection(ents, l)
-#             if len(match) == 0:
-#                 continue
-#             match_ents.update(match)
-#             new_ents.update(match.difference(l))
-#             score += len(match_ents)
-#             # ntotal = len(l)
-#             # nsimil = sum(cand_ents[e] for e in match)
-#             # k1 = 1 / nsimil
-#             # k2 = 1 / ntotal
-#             # k3 = nsimil + 1 - k1 + 1 - k2
-#             # k4 = k3 / ntotal ** 0.7
-#             # score += k4 / d
-#         tot_ents = 1 + len(es) + len(rs_set)
-#         score /= tot_ents
-#         if score == 0:
-#             continue
-#         matching_page = (v, match_ents, new_ents, score, tot_ents)
-#         matching_pages.append(matching_page)
-#     # for mp in sorted(matching_pages, key=lambda x: x[3], reverse=True):
-#     #     print("==>", mp[0]["title"], "-", mp[3], ":", len(mp[1]), "/", mp[4])
-#     return matching_pages
-
 def _get_matching_pages(cand_ents, pages):
     matching_pages = []
     ents = set(cand_ents)
@@ -493,6 +373,6 @@ def _get_matching_pages(cand_ents, pages):
         # score = k3 / ntotal ** 0.8
         # score = sum(cand_ents[c] for c in common) / len(nb) ** 0.8
         score = common_count / len(nb) ** 0.8
-        matching_page = (v, common, score)
+        matching_page = (v, nb, score)
         matching_pages.append(matching_page)
     return matching_pages
