@@ -5,7 +5,7 @@ import spacy
 import streamlit as st
 from srsly import json_loads
 
-from respacy.clustering.wikiclusterx import WikiClusterX
+from spike.clustering.wikiclusterx import WikiClusterX
 
 
 @st.cache(allow_output_mutation=True, show_spinner=False)

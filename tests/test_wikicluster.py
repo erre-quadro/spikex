@@ -1,7 +1,5 @@
 import pytest
 
-from google_patent_scraper import scraper_class
-
 patset1 = [
     "US6180917_B1",
     "US2018168802_A1",
@@ -73,8 +71,10 @@ patset3 = [
 
 
 @pytest.mark.slow()
+@pytest.mark.skip()
 def test_cluster_patents():
-    scraper = scraper_class()
-    for patset in (patset1, patset2, patset3):
-        for pat in patset:
-            scraper.add_patents(pat)
+    pass
+    # scraper = scraper_class()
+    # for patset in (patset1, patset2, patset3):
+    #     for pat in patset:
+    #         scraper.add_patents(pat)

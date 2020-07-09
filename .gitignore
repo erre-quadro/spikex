@@ -146,5 +146,5 @@ prof/
 resources/
 
 # data
-respacy/data/*
-!respacy/data/__init__.py
+spike/data/*
+!spike/data/__init__.py

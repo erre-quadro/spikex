@@ -1,4 +1,4 @@
-* respacy version:
+* spike version:
 * Python version:
 * Operating System:
 

@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use respacy in a project::
+To use spike in a project::
 
-    import respacy
+    import spike

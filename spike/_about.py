@@ -1,6 +1,6 @@
 __author__ = "Paolo Arduin"
 __email__ = "paolo.arduin@errequadrosrl.com"
 __license__ = "Apache Software License 2.0"
-__summary__ = "🌀A set of custom pipes which enhance and exploit spaCy."
-__title__ = "respacy"
+__summary__ = "SPIKE - SpaCy Pipes for Knowledge Extraction"
+__title__ = "spike"
 __version__ = "0.2.2-dev1"

@@ -14,7 +14,7 @@ class WikiClusterX:
         self._leaves_map = {}
         self._trie_leaves_map = {}
         self._trie = Trie(ignore_case=True)
-        self._wg = WikiGraph("respacy/data/enwiki_core_latest")
+        self._wg = WikiGraph("spike/data/enwiki_core_latest")
         for leaf in self._wg.leaves:
             title = leaf["title"]
             norm_text = _normalize_title(title)

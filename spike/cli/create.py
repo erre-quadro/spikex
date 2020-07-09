@@ -3,7 +3,7 @@ from pathlib import Path
 from igraph import Graph
 from wasabi import msg
 
-from respacy.wikigraph.dumptools import iter_categorylinks_dump_data
+from spike.wikigraph.dumptools import iter_categorylinks_dump_data
 
 from ..wikigraph import dumptools as dt
 from ..wikigraph.dumptools import WIKI_CL_TYPE_PAGE

@@ -3,7 +3,7 @@ import streamlit as st
 from ftfy import fix_text
 from spacy import displacy
 
-from respacy.entity_linking.wikientx import WikiEntX
+from spike.entity_linking.wikientx import WikiEntX
 
 
 @st.cache(allow_output_mutation=True, show_spinner=False)

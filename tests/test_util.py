@@ -1,7 +1,7 @@
 import pytest
 from spacy.tokens import Span
 
-from respacy.util import idx2i, span_idx2i
+from spike.util import idx2i, span_idx2i
 
 _TEXT_SAMPLE = "this is a sample text useful for testing"
 

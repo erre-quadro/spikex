@@ -1,6 +1,6 @@
 from spacy.tokens import Span
 
-from respacy.phrases import PhraseDetector
+from spike.phrases import PhraseDetector
 
 
 def test_np_simple(nlp):

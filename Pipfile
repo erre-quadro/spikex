@@ -29,8 +29,7 @@ jsonschema = "*"
 regex = "*"
 typer = "*"
 wasabi = "*"
-respacy = {editable = true,path = "."}
-spacy = "<3.0"
+spacy = ">=2.2.2,<3.0"
 ftfy = "*"
 smart-open = "*"
 cyac = "*"
@@ -38,7 +37,6 @@ cython = "*"
 streamlit = "*"
 yarl = "*"
 python-igraph = "*"
-flashtext = "*"
 
 [pipenv]
 allow_prereleases = true

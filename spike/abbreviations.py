@@ -2,7 +2,7 @@ from typing import Iterable, Optional, Set, Tuple, Union
 
 from spacy.tokens import Doc, Span
 
-from respacy.matcher import Matcher
+from spike.matcher import Matcher
 
 from .util import span_idx2i
 
@@ -99,6 +99,8 @@ class AbbreviationDetector:
                 global_search[short_form] = long_form
             if long_form.start not in start_seen:
                 global_search[long_form] = short_form
+            if not global_search:
+                continue
             # Look for each new abbreviation globally to find lone ones
             for form_seen, form_search in global_search.items():
                 start_seen.setdefault(form_seen.start)

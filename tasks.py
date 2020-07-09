@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 SETUP_FILE = ROOT_DIR.joinpath("setup.py")
 TEST_DIR = ROOT_DIR.joinpath("tests")
-SOURCE_DIR = ROOT_DIR.joinpath("respacy")
+SOURCE_DIR = ROOT_DIR.joinpath("spike")
 EXAMPLES_DIR = ROOT_DIR.joinpath("examples")
 TOX_DIR = ROOT_DIR.joinpath(".tox")
 COVERAGE_FILE = ROOT_DIR.joinpath(".coverage")
@@ -29,7 +29,8 @@ def _delete_file(file):
     try:
         file.unlink(missing_ok=True)
     except TypeError:
-        # missing_ok argument added in 3.8
+        # missing_ok argument only 
+        # added since python 3.8
         try:
             file.unlink()
         except FileNotFoundError:

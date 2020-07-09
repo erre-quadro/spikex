@@ -1,6 +1,6 @@
 import pytest
 
-from respacy.abbreviations import AbbreviationDetector, find_abbreviation
+from spike.abbreviations import AbbreviationDetector, find_abbreviation
 
 
 def _get_long_form(nlp, text, short):

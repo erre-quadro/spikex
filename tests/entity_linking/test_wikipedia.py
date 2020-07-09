@@ -1,9 +1,10 @@
 import pytest
 
-from respacy.entity_linking.wikientx import WikiEntX
+from spike.entity_linking.wikientx import WikiEntX
 
 
 @pytest.mark.slow()
+@pytest.mark.skip()
 def test_wiki_entx(nlp):
     wiki_entx = WikiEntX()
     doc = wiki_entx(nlp(open("resources/sample5.txt").read()), stopwords=True)
