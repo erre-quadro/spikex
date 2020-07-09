@@ -38,6 +38,7 @@ cython = "*"
 streamlit = "*"
 yarl = "*"
 python-igraph = "*"
+flashtext = "*"
 
 [pipenv]
 allow_prereleases = true

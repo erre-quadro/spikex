@@ -19,12 +19,12 @@ def nlp():
     show_spinner=False,
 )
 def wikicluster():
-    return WikiClusterX()
+    return WikiClusterX(nlp().vocab)
 
 
 @st.cache(allow_output_mutation=True, show_spinner=False)
 def load_patent(path):
-    return 
+    return
 
 
 @st.cache(allow_output_mutation=True, show_spinner=False)
@@ -42,7 +42,9 @@ def load_patents(num_docs):
                     ]
                 )
             ): patent["uid"]
-            for patent in json_loads(path.read_text())["response"]["docs"][:num_docs]
+            for patent in json_loads(path.read_text())["response"]["docs"][
+                :num_docs
+            ]
         }
         for path in Path("resources/patents").glob("**/*.json")
     ]
@@ -135,7 +137,10 @@ def get_clusters(num_docs, th):
         for i, c in count.most_common():
             if i not in stats or stats[i][0] < c:
                 stats[i] = (c, c / clen)
-    stats = [[(i, f"r: {c[0] / num_docs:.2f}", f"p: {c[1]:.2f}")] for i, c in stats.items()]
+    stats = [
+        [(i, f"r: {c[0] / num_docs:.2f}", f"p: {c[1]:.2f}")]
+        for i, c in stats.items()
+    ]
     return clusters, stats
 
 

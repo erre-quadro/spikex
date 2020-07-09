@@ -6,7 +6,7 @@ if __name__ == "__main__":
 
     commands = {
         "profile": cli.profile,
-        "make-wikigraph": cli.make_wikigraph,
+        "create-wiki-xnergraph": cli.create_wiki_xnergraph,
     }
 
     if len(sys.argv) == 1:

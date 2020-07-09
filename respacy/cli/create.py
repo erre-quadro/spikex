@@ -10,7 +10,7 @@ from ..wikigraph.dumptools import WIKI_CL_TYPE_PAGE
 from ..wikigraph.wikigraph import KIND_CATEGORY, KIND_PAGE
 
 
-def make_wikigraph(
+def create_wiki_xnergraph(
     lang="en",
     version="latest",
     disk_path: Path = None,
