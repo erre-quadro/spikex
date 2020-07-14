@@ -1,4 +1,4 @@
-__author__ = "Paolo Arduin"
+__author__ = "Erre Quadro srl"
 __email__ = "paolo.arduin@errequadrosrl.com"
 __license__ = "Apache Software License 2.0"
 __summary__ = "SPIKE - SpaCy Pipes for Knowledge Extraction"

@@ -2,6 +2,8 @@ import pytest
 import spacy
 from spacy.util import get_lang_class
 
+from spike.wikigraph import WikiGraph
+
 
 def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", help="include slow tests")
@@ -22,7 +24,12 @@ def pytest_runtest_setup(item):
             pytest.skip("need --%s option to run" % opt)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
+def wikigraph():
+    return WikiGraph("simplewiki_core")
+
+
+@pytest.fixture(scope="session")
 def nlp():
     return spacy.load("en_core_web_sm")
 

@@ -88,13 +88,13 @@ class Matcher(object):
         key = self._normalize_key(key)
         return self[key] if key in self else (default, default)
 
-    def add(self, key: str, patterns, on_match=None):
+    def add(self, key, patterns, on_match=None):
         """
         Add a match-rule to the matcher. 
         A match-rule consists of: 
             an ID key, 
             a list of patterns,
-            an on_match callback. 
+            an on_match callback.
         If the key exists, the patterns are appended to the 
         previous ones, and the previous on_match callback is replaced. The 
         `on_match` callback will receive the arguments `(matcher, doc, i, matches)`. 

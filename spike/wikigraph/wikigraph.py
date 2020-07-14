@@ -1,3 +1,4 @@
+import importlib
 from itertools import combinations, product
 from typing import Iterable, Union
 
@@ -13,27 +14,27 @@ VertexType = Union[Vertex, int]
 
 class WikiGraph:
     def __init__(self, graph_name):
-        graph_path = f"{graph_name}.picklez"
-        self.g = Graph.Read(graph_path)
+        kls = importlib.import_module(graph_name)
+        self.g = Graph.Read(kls.graph_path)
 
-    @property
-    def leaves(self):
-        return self.g.vs.select(kind_eq=KIND_PAGE)
+    def pages(self):
+        yield from self.g.vs.select(kind_eq=KIND_PAGE)
 
     def get_vertex(self, vertex: VertexType):
         return self.g.vs[vertex] if isinstance(vertex, int) else vertex
 
-    def get_main_vertex(self, vertex: VertexType):
+    def get_head_vertex(self, vertex: VertexType):
         return self.get_redirect(vertex) or self.get_vertex(vertex)
 
     def is_redirect(self, vertex: VertexType):
-        v = self.g.vs[vertex] if isinstance(vertex, int) else vertex
-        return len(v["redirect"]) > 0
+        vx = self.get_vertex(vertex)
+        return len(vx["redirect"]) > 0
 
     def get_redirect(self, vertex: VertexType):
         vx = self.get_vertex(vertex)
-        if self.is_redirect(vx):
-            return self.g.vs.find(vx["redirect"])
+        if not self.is_redirect(vx):
+            return
+        return self.g.vs.find(vx["redirect"])
 
     def are_redirects(self, v1: VertexType, v2: VertexType):
         vx1 = self.get_vertex(v1)
@@ -49,7 +50,7 @@ class WikiGraph:
         )
 
     def get_parents(self, vertex: VertexType):
-        vx = self.get_main_vertex(vertex)
+        vx = self.get_head_vertex(vertex)
         return vx.neighbors(mode="OUT")
 
     def get_children(
@@ -58,7 +59,7 @@ class WikiGraph:
         only_cats: bool = None,
         only_pages: bool = None,
     ):
-        vx = self.get_main_vertex(vertex)
+        vx = self.get_head_vertex(vertex)
         if only_cats or only_pages:
             return [
                 child

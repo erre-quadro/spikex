@@ -1,19 +1,12 @@
-#!/usr/bin/env python
-
-"""The setup script."""
-
 from setuptools import setup, find_packages
 
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-with open("HISTORY.rst") as history_file:
-    history = history_file.read()
-
 requirements = [
     "jsonschema",
     "regex",
-    "spacy==2.3.1",
+    "spacy>=2.2.2,<3.0",
     "wasabi",
     "typer",
 ]
@@ -23,7 +16,7 @@ setup_requirements = ["pytest-runner"]
 test_requirements = ["pytest"]
 
 setup(
-    author="Paolo Arduin",
+    author="Erre Quadro srl",
     author_email="paolo.arduin@errequadrosrl.com",
     python_requires=">=3.6",
     classifiers=[
@@ -35,10 +28,10 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
     ],
-    description="SPIKE - SpaCy Pipes for Knowldge Extraction",
+    description="SPIKE - SpaCy Pipes for Knowledge Extraction",
     install_requires=requirements,
     license="Apache Software License 2.0",
-    long_description=readme + "\n\n" + history,
+    long_description=readme,
     include_package_data=True,
     keywords="spike",
     name="spike",

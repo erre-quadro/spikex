@@ -2,6 +2,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
 from pathlib import Path
 
+import regex as re
+import requests
 from ftfy import fix_text
 from smart_open.compression import compression_wrapper
 from smart_open.http import open as http_open
@@ -16,12 +18,11 @@ __all__ = [
 ]
 
 config = {
-    "disk_path": None,
-    "keep_files": None,
-    "lang": "en",
+    "dumps_path": None,
     "max_workers": 4,
     "verbose": None,
     "version": "latest",
+    "wiki": "en",
 }
 
 WIKI_NS_KIND_CATEGORY = "14"
@@ -35,8 +36,24 @@ _WIKI_DP_PAGE = "page"
 _WIKI_DP_PAGE_PROPS = "page_props"
 _WIKI_DP_REDIRECT = "redirect"
 
-_WIKI_DL_NAME = "{l}wiki-{v}-{t}.sql.gz"
-_WIKI_DL_PATH = "https://dumps.wikimedia.org/{l}wiki/{v}/{n}"
+_WIKI_DL_NAME = "{w}wiki-{v}-{t}.sql.gz"
+_WIKI_BASE_DL_PATH = "https://dumps.wikimedia.org/{w}wiki/"
+_WIKI_DL_PATH = _WIKI_BASE_DL_PATH + "{v}/{n}"
+
+
+def resolve_version(wiki, version):
+    url = _WIKI_BASE_DL_PATH.format(w=wiki)
+    response = requests.get(url)
+    versions = re.findall(r"href=\"(\d+)/\"", response.text)
+    if version in versions:
+        return version
+    if version == "latest":
+        return max(versions)
+    msg.fail(
+        "Wikipedia dump version not found",
+        f"Pick one of these: {', '.join(versions)}.",
+    )
+    return
 
 
 def iter_page_props_dump_data(**kwargs):
@@ -98,21 +115,20 @@ def _parse_fx_categorylinks_dump(el):
 
 def _get_wiki_dump_dl_url(t, **kwargs):
     _kwargs = {**config, **kwargs}
-    l = _kwargs["lang"]
+    w = _kwargs["wiki"]
     v = _kwargs["version"]
-    n = _WIKI_DL_NAME.format(l=l, t=t, v=v)
-    dp = _kwargs["disk_path"]
-    if dp:
+    n = _WIKI_DL_NAME.format(w=w, t=t, v=v)
+    dp = _kwargs["dumps_path"]
+    if dp is not None and dp.exists():
         path = dp.joinpath(n)
         if path.exists():
             return path
-    return URL(_WIKI_DL_PATH.format(l=l, n=n, v=v))
+    return URL(_WIKI_DL_PATH.format(w=w, n=n, v=v))
 
 
 def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
     _kwargs = {**config, **kwargs}
-    disk_path = _kwargs["disk_path"]
-    keep_files = _kwargs["keep_files"]
+    dumps_path = _kwargs["dumps_path"]
     max_workers = _kwargs["max_workers"]
     verbose = _kwargs["verbose"]
     fs = []
@@ -137,14 +153,18 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
                 compress_bytes = compress_obj.tell()
                 pbar.update(compress_bytes - compress_bytes_read)
                 compress_bytes_read = compress_bytes
-            if keep_files:
-                compress_obj.seek(0)
-                file_path = disk_path.joinpath(dump_name)
-                if not file_path.exists() or file_path.stat().st_size == 0:
-                    with msg.loading("save"), file_path.open("wb+") as fd:
-                        for data in compress_obj:
-                            fd.write(data)
-            compress_obj.close()
+        if dumps_path is not None:
+            compress_obj.seek(0)
+            if not dumps_path.exists():
+                dumps_path.mkdir()
+            dump_filepath = dumps_path.joinpath(dump_name)
+            if not dump_filepath.exists() or dump_filepath.stat().st_size == 0:
+                with msg.loading("saving dump..."), dump_filepath.open(
+                    "wb+"
+                ) as fd:
+                    for data in compress_obj:
+                        fd.write(data)
+        compress_obj.close()
         with tqdm(desc="wrap up", total=len(fs), disable=tqdm_disable) as pbar:
             for f in as_completed(fs):
                 for res in f.result():

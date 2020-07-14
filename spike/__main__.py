@@ -5,8 +5,9 @@ if __name__ == "__main__":
     from . import cli
 
     commands = {
+        "create-wikigraph": cli.create_wikigraph,
+        "package-wikigraph": cli.package_wikigraph,
         "profile": cli.profile,
-        "create-wiki-xnergraph": cli.create_wiki_xnergraph,
     }
 
     if len(sys.argv) == 1:
