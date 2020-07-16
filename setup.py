@@ -9,6 +9,12 @@ requirements = [
     "spacy>=2.2.2,<3.0",
     "wasabi",
     "typer",
+    "python-igraph",
+    "ftfy",
+    "smart-open",
+    "cyac",
+    "cython",
+    "yarl",
 ]
 
 setup_requirements = ["pytest-runner"]
@@ -20,7 +26,7 @@ setup(
     author_email="paolo.arduin@errequadrosrl.com",
     python_requires=">=3.6",
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",

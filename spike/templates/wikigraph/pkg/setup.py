@@ -1,18 +1,19 @@
+from os import path, walk
+from pathlib import Path
+from shutil import copy
+
 from setuptools import setup
 from srsly import json_loads
-from pathlib import Path
-from os import walk, path
-from shutil import copy
 
 
 def list_files(data_dir):
     output = []
     for root, _, filenames in walk(data_dir):
         for filename in filenames:
-            if not filename.startswith('.'):
+            if not filename.startswith("."):
                 output.append(path.join(root, filename))
     output = [path.relpath(p, path.dirname(data_dir)) for p in output]
-    output.append('meta.json')
+    output.append("meta.json")
     return output
 
 

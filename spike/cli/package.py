@@ -1,12 +1,12 @@
 import shutil
 from distutils.dir_util import copy_tree
+from os import rename
 from pathlib import Path
 
 from srsly import json_loads
 from wasabi import msg
 
 from ..templates.wikigraph import pkg_path
-from os import rename
 
 
 def package_wikigraph(input_path: Path, output_path: Path, force: bool = None):

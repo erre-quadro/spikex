@@ -23,10 +23,10 @@ class WikiTopicX:
         self.refresh = refresh
 
     def __call__(self, doc: Doc):
-        if not doc._.catches or self._refresh:
+        if not doc._.catches or self.refresh:
             self._catchx.min_score = MIN_SCORE_THRESHOLD
             self._catchx(doc)
-        if not doc._.topics or self._refresh:
+        if not doc._.topics or self.refresh:
             doc._.topics = self._get_topics(doc._.catches)
         return doc
 

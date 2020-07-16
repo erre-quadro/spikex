@@ -1,6 +1,6 @@
 from pathlib import Path
-from srsly import json_loads
 
+from srsly import json_loads
 
 _here_path = Path(__file__).parent
 _meta_path = _here_path / "meta.json"

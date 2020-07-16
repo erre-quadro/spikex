@@ -23,6 +23,9 @@ def create_wikigraph(
     version = dt.resolve_version(wiki, version)
     if not version:
         return
+    if not output_path.exists():
+        output_path.mkdir()
+        msg.good("Created output directory: {}".format(output_path))
     if any(p for p in output_path.iterdir()):
         msg.fail(
             "Output directory is not empty",
@@ -31,9 +34,6 @@ def create_wikigraph(
             "created for you.",
             exits=1,
         )
-    if not output_path.exists():
-        output_path.mkdir()
-        msg.good("Created output directory: {}".format(output_path))
     graph_name = f"{wiki}wiki_{t}"
     graph_path = output_path.joinpath(graph_name)
     if not graph_path.exists():
@@ -58,7 +58,8 @@ def create_wikigraph(
     meta["format"] = graph_format
     meta["version"] = version
     meta["spike_version"] = f">={spike_version}"
-    meta["fullname"]= f"{graph_name}-{spike_version}"
+    meta["fullname"] = f"{graph_name}-{spike_version}"
+    meta["sources"].append("Wikipedia")
     meta_path = graph_path.joinpath("meta.json")
     meta_path.write_text(json_dumps(meta, indent=2))
     msg.good(f"Successfully created {graph_name}.")

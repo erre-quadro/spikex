@@ -63,6 +63,14 @@ class WikiCatchX:
         catches = {}
         for id_, start_idx, end_idx in self._trie.match_longest(text, ac_sep):
             start_i, end_i = _span_idx2i(start_idx, end_idx, idx2i, maxtlen)
+            if start_i >= end_i:
+                print(
+                    start_idx,
+                    end_idx,
+                    text[start_idx:end_idx],
+                    text[start_idx - 5 : end_idx + 5],
+                )
+                continue
             span = doc[start_i:end_i]
             key = self._trie_pages_map[id_]
             catch = text[start_idx:end_idx]
@@ -87,6 +95,7 @@ class WikiCatchX:
                 pages.setdefault(head_vx.index)
             span_score = (1 / nfactor) if nfactor else 0
             if span_score < self.min_score or span_score > self.max_score:
+                del catches[key]
                 continue
             data.setdefault("score", span_score)
         matcher = Matcher(doc.vocab)
@@ -134,20 +143,14 @@ def _preprocess(source: Union[Doc, Span], stopwords: bool):
 def _preprocess_maps(source: Union[Doc, Span], stopwords: bool):
     idx2i = {}
     text_tokens = []
-    curr_length = 0
-    num_spaces = 0
+    curr_idx = 0
     for i, token in enumerate(source):
-        pad = num_spaces
-        idx = curr_length + pad
-        idx2i[idx] = i
+        idx2i[curr_idx] = i
         value = _get_token_text_norm(token, stopwords)
-        curr_length += len(value)
         value += token.whitespace_
-        num_spaces += len(token.whitespace_)
         text_tokens.append(value)
-    curr_length += num_spaces
-    len_source = len(source)
-    idx2i[curr_length] = len_source
+        curr_idx += len(value)
+    idx2i[curr_idx] = len(source)
     text = "".join(text_tokens)
     return idx2i, text
 
@@ -165,27 +168,10 @@ def _span_idx2i(start_idx, end_idx, idx2i, maxlen):
         start_idx += 1
     while end_idx not in idx2i and end_idx < maxlen:
         end_idx += 1
+    if start_idx == end_idx:
+        end_i = idx2i[end_idx]
+        return end_i - 1, end_i
     return idx2i[start_idx], idx2i[end_idx]
-
-
-def _is_good_span_for_catch(span):
-    first = span[0]
-    bad_pos_tag = ("AUX",)
-    good_tag = ("VBG",)
-    good_pos = ("NOUN", "PROPN")
-    if len(span) == 1:
-        if not first.like_num and (
-            (first.tag_ in good_tag and first.pos_ not in bad_pos_tag)
-            or first.pos_ in good_pos
-        ):
-            return True
-        return
-    bad_pos = ("ADP", "DET", "CONJ", "CCONJ", "SCONJ", "NUM")
-    if any(token.pos_ in bad_pos for token in span):
-        return
-    return any(
-        token.pos_ in good_pos or token.tag_ in good_tag for token in span
-    )
 
 
 def _is_good_catch(page, catch):

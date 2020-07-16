@@ -25,12 +25,12 @@ class WikiLinkageX:
         docs_data = {}
         topics = set()
         iter_docs = (
-            (self._topicx(doc) if not doc._.topics or refresh else doc)
+            self._topicx(doc) if not doc._.topics or refresh else doc
             for doc in docs
         )
         for doc in iter_docs:
             doc_data = docs_data.setdefault(doc, {})
-            for topic_id, count in doc._.topics:
+            for topic_id, count in doc._.topics.items():
                 if topic_id not in doc_data:
                     doc_data[topic_id] = 0
                 doc_data[topic_id] += count
@@ -47,7 +47,7 @@ def _default_correl_func(docs_data):
     for doc, data in docs_data.items():
         doc_linkage = linkage.setdefault(doc, {})
         for other_doc, other_data in docs_data.items():
-            if doc == other_doc:
+            if doc == other_doc or other_doc in doc_linkage:
                 continue
             topics = set([t for t in data if data[t] > 2])
             other_topics = set([t for t in other_data if other_data[t] > 2])
@@ -68,6 +68,12 @@ def _default_correl_func(docs_data):
                 (data.get(e, 0) + other_data.get(e, 0)) / 2 for e in topics
             )
             correl = k1 / k2
+            good_topics = [
+                (k, v)
+                for k, v in sorted(
+                    good_topics.items(), key=lambda x: x[1], reverse=True
+                )
+            ]
             linkage_data = (correl, good_topics)
             doc_linkage.setdefault(other_doc, linkage_data)
             other_doc_linkage = linkage.setdefault(other_doc, {})

@@ -36,25 +36,25 @@ class WikiIdentX:
             topic_pages = self._get_topic_pages(topics, catch.pages)
             if not topic_pages:
                 continue
-            topic_pages.sort(key=lambda x: x[2], reverse=True)
+            topic_pages.sort(key=lambda x: x[1], reverse=True)
             idents.extend(((span, [topic_pages[0]]) for span in catch.spans))
-        return sorted(idents, key=lambda x: x.start)
+        return sorted(idents, key=lambda x: x[0].start)
 
     def _get_topic_pages(self, topics, pages):
         topic_pages = []
         ents = set(topics)
-        for v, nbs in pages.items():
-            nbs_set = set(nbs or self.wg.get_neighborcats(v, large=True)[0])
-            common = set.intersection(ents, set(nbs_set))
+        for page in pages:
+            nbs = set(self.wg.get_neighborcats(page, large=True))
+            common = set.intersection(ents, set(nbs))
             common_count = len(common)
             if common_count == 0:
                 continue
             # score = max(cand_ents[e] for e in common)  # sum(cand_ents[e] for e in common) / len(nbs_set) ** 0.8
             # score = sum(cand_ents[e] for e in common) * common_count / len(nbs_set) ** 0.8
-            score = common_count / len(nbs_set) ** 0.8
+            score = common_count / len(nbs) ** 0.8
             if score < 0.01:
                 continue
-            topic_page = (v, score)
+            topic_page = (page, score)
             topic_pages.append(topic_page)
         # counts = topics.values()
         # emin = min(counts)

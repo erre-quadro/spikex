@@ -106,7 +106,8 @@ class WikiGraph:
         vertices: Union[Iterable[VertexType], VertexType],
         large: bool = None,
     ):
-        if not isinstance(vertices, Iterable):
+        single_vertex = not isinstance(vertices, Iterable)
+        if single_vertex:
             vertices = [vertices]
         nbcats = []
         for vertex in vertices:  # type: ignore
@@ -122,6 +123,8 @@ class WikiGraph:
                 for grand_parent in self.get_parents(parent):
                     vx_nbcats.add(grand_parent.index)
             nbcats.append(list(vx_nbcats))
+        if single_vertex:
+            return nbcats[0]
         return nbcats
 
     def get_most_similar(

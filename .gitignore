@@ -148,3 +148,4 @@ resources/
 # data
 spike/data/*
 !spike/data/__init__.py
+graph_data/
