@@ -4,7 +4,7 @@ import pytest
 from spacy.lang.en import English
 from spacy.tokens import Doc, Span
 
-from respacy.matcher import Matcher
+from spikex.matcher import Matcher
 
 pattern1 = [{"ORTH": "A", "OP": "1"}, {"ORTH": "A", "OP": "*"}]
 pattern2 = [{"ORTH": "A", "OP": "*"}, {"ORTH": "A", "OP": "1"}]
@@ -123,11 +123,11 @@ def test_matcher_end_zero_plus(en_vocab):
     matcher.add("TSTEND", [pattern])
     nlp = lambda string: Doc(en_vocab, words=string.split())
     assert len(matcher(nlp("a"))) == 1
-    assert len(matcher(nlp("a b"))) == 2
+    assert len(matcher(nlp("a b"))) == 1
     assert len(matcher(nlp("a c"))) == 1
-    assert len(matcher(nlp("a b c"))) == 2
-    assert len(matcher(nlp("a b b c"))) == 3
-    assert len(matcher(nlp("a b b"))) == 3
+    assert len(matcher(nlp("a b c"))) == 1
+    assert len(matcher(nlp("a b b c"))) == 1
+    assert len(matcher(nlp("a b b"))) == 1
 
 
 def test_matcher_start_zero_plus(en_vocab):
@@ -136,11 +136,11 @@ def test_matcher_start_zero_plus(en_vocab):
     matcher.add("TSTEND", [pattern])
     nlp = lambda string: Doc(en_vocab, words=string.split())
     assert len(matcher(nlp("c"))) == 1
-    assert len(matcher(nlp("b c"))) == 2
+    assert len(matcher(nlp("b c"))) == 1
     assert len(matcher(nlp("a c"))) == 1
-    assert len(matcher(nlp("a b c"))) == 2
-    assert len(matcher(nlp("a b b c"))) == 3
-    assert len(matcher(nlp("b b c"))) == 3
+    assert len(matcher(nlp("a b c"))) == 1
+    assert len(matcher(nlp("a b b c"))) == 1
+    assert len(matcher(nlp("b b c"))) == 1
 
 
 def test_matcher_start_zero_plus_not_in(en_vocab):
@@ -149,12 +149,12 @@ def test_matcher_start_zero_plus_not_in(en_vocab):
     matcher.add("TSTEND", [pattern])
     nlp = lambda string: Doc(en_vocab, words=string.split())
     assert len(matcher(nlp("c"))) == 1
-    assert len(matcher(nlp("b c"))) == 2
+    assert len(matcher(nlp("b c"))) == 1
     assert len(matcher(nlp("z c"))) == 1
-    assert len(matcher(nlp("z b c"))) == 2
-    assert len(matcher(nlp("t z b c"))) == 2
+    assert len(matcher(nlp("z b c"))) == 1
+    assert len(matcher(nlp("t z b c"))) == 1
     assert len(matcher(nlp("a t z c"))) == 1
-    assert len(matcher(nlp("a t z b c"))) == 2
+    assert len(matcher(nlp("a t z b c"))) == 1
 
 
 def test_matcher_sets_return_correct_tokens(en_vocab):
@@ -183,7 +183,7 @@ def test_matcher_remove():
 
     # should give two matches
     results1 = matcher(nlp(text))
-    assert len(results1) == 2
+    assert len(results1) == 1
 
     # removing once should work
     matcher.remove("Rule")
@@ -197,20 +197,6 @@ def test_matcher_remove():
         matcher.remove("Rule")
 
 
-def test_matcher_returns_best_sort(en_vocab):
-    matcher = Matcher(en_vocab)
-    patterns = [
-        [{"LOWER": "zero"}],
-        [{"LOWER": "zero"}, {"LOWER": "one"}],
-        [{"LOWER": "zero"}, {"LOWER": "one"}, {"LOWER": "two"}],
-    ]
-    matcher.add("TEST", patterns)
-    doc = Doc(en_vocab, words="zero one two three".split())
-    matches = matcher(doc, best_sort=True)
-    texts = [Span(doc, s, e, label=L).text for L, s, e in matches]
-    assert texts == ["zero one two", "zero one", "zero"]
-
-
 def test_matcher_zero_plus_double(en_vocab):
     matcher = Matcher(en_vocab)
     pattern = [
@@ -221,10 +207,10 @@ def test_matcher_zero_plus_double(en_vocab):
     matcher.add("TSTEND", [pattern])
     nlp = lambda string: Doc(en_vocab, words=string.split())
     assert len(matcher(nlp("c"))) == 1
-    assert len(matcher(nlp("b c"))) == 2
+    assert len(matcher(nlp("b c"))) == 1
     assert len(matcher(nlp("z c"))) == 1
-    assert len(matcher(nlp("a b c"))) == 3
-    assert len(matcher(nlp("a z b c"))) == 2
+    assert len(matcher(nlp("a b c"))) == 1
+    assert len(matcher(nlp("a z b c"))) == 1
     assert len(matcher(nlp("a b z c"))) == 1
 
 
@@ -238,10 +224,22 @@ def test_matcher_zero_one_zero_plus(en_vocab):
     nlp = lambda string: Doc(en_vocab, words=string.split())
     assert len(matcher(nlp("b"))) == 0
     assert len(matcher(nlp("a"))) == 1
-    assert len(matcher(nlp("a b"))) == 2
-    assert len(matcher(nlp("a b b"))) == 3
-    assert len(matcher(nlp("z a b"))) == 2
+    assert len(matcher(nlp("a b"))) == 1
+    assert len(matcher(nlp("a b b"))) == 1
+    assert len(matcher(nlp("z a b"))) == 1
     assert len(matcher(nlp("a z b"))) == 1
-    assert len(matcher(nlp("a b z"))) == 2
-    assert len(matcher(nlp("a b z b"))) == 2
-    assert len(matcher(nlp("a b b z"))) == 3
+    assert len(matcher(nlp("a b z"))) == 1
+    assert len(matcher(nlp("a b z b"))) == 1
+    assert len(matcher(nlp("a b b z"))) == 1
+
+
+def test_matching_engine_chain(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [
+        {"LENGTH": {"==": 1}, "OP": "*"},
+        {"LOWER": "test"},
+        {"LENGTH": {"==": 1}, "OP": "*"},
+    ]
+    matcher.add("TEST_CHAIN", [pattern])
+    matches = matcher(Doc(en_vocab, words=["aa", "a", "test", "b", "bb"]))
+    assert matches[0][1:] == (1, 4)

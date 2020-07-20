@@ -1,8 +1,8 @@
-from collections import defaultdict
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Iterable, Optional, Set, Tuple, Union
 
-from spacy.matcher import Matcher
 from spacy.tokens import Doc, Span
+
+from spikex.matcher import Matcher
 
 from .util import span_idx2i
 
@@ -30,17 +30,19 @@ class AbbreviationDetector:
             "abbreviations",
             [
                 # Pattern for abbreviations not enclosed in brackets
-                [{"IS_ALPHA": True, "IS_UPPER": True, "LENGTH": {">": 1}},],
+                # here we limit to alpha chars only as it could
+                # get many exceptions
+                [{"IS_ALPHA": True, "IS_UPPER": True, "LENGTH": {">": 1}}],
                 # Pattern for abbreviations enclosed in brackets
+                # here we try to allow non alpha chars too as it is
+                # the more likely standard way to introduce an abbreviation
                 [
                     {"TEXT": {"IN": ["(", "["]}},
-                    {"IS_ALPHA": True, "LENGTH": {">": 1}},
+                    {"OP": "+"},
                     {"TEXT": {"IN": [")", "]"]}},
                 ],
             ],
         )
-
-        self.global_matcher = Matcher(nlp.vocab)
 
     def find(self, span: Span, doc: Doc) -> Tuple[Span, Set[Span]]:
         """
@@ -50,12 +52,11 @@ class AbbreviationDetector:
         """
         dummy_matches = [(-1, int(span.start), int(span.end))]
         filtered = _filter_matches(dummy_matches, doc)
-        abbreviations = self.find_matches_for(filtered, doc)
+        abbreviations = list(self.find_matches_for(filtered, doc))
 
         if not abbreviations:
             return span, set()
-        else:
-            return abbreviations[0]
+        return abbreviations[0]
 
     def __call__(self, doc: Doc) -> Doc:
         matches = self.matcher(doc)
@@ -70,53 +71,12 @@ class AbbreviationDetector:
             ]
         )
         filtered = _filter_matches(matches_no_punct, doc)
-        occurences = self.find_matches_for(filtered, doc)
+        occurences = _find_matches_for(filtered, doc)
 
-        for (long_form, short_forms) in occurences:
-            for short in short_forms:
-                short._.long_form = long_form
-                doc._.abbreviations.append(short)
+        for long_form, short_form in occurences:
+            short_form._.long_form = long_form
+            doc._.abbreviations.append(short_form)
         return doc
-
-    def find_matches_for(
-        self, filtered: List[Tuple[Span, Span]], doc: Doc
-    ) -> List[Tuple[Span, Set[Span]]]:
-        rules = {}
-        all_occurences: Dict[Span, Set[Span]] = defaultdict(set)
-        already_seen_long: Set[str] = set()
-        already_seen_short: Set[str] = set()
-        for (long_candidate, short_candidate) in filtered:
-            short, long = find_abbreviation(long_candidate, short_candidate)
-            # We need the long and short form definitions to be unique, because we need
-            # to store them so we can look them up later. This is a bit of a
-            # pathalogical case also, as it would mean an abbreviation had been
-            # defined twice in a document. There's not much we can do about this,
-            # but at least the case which is discarded will be picked up below by
-            # the global matcher. So it's likely that things will work out ok most of the time.
-            new_long = (
-                True  # long.string not in already_seen_long if long else False
-            )
-            new_short = True  # short.string not in already_seen_short
-            if long is not None and new_long and new_short:
-                already_seen_long.add(long.string)
-                already_seen_short.add(short.string)
-                all_occurences[long].add(short)
-                rules[long.string] = long
-                # Add a rule to a matcher to find exactly this substring.
-                self.global_matcher.add(
-                    long.string, None, [{"ORTH": x.text} for x in short]
-                )
-        to_remove = set()
-        global_matches = self.global_matcher(doc)
-        for match, start, end in global_matches:
-            string_key = self.global_matcher.vocab.strings[match]
-            to_remove.add(string_key)
-            all_occurences[rules[string_key]].add(doc[start:end])
-        for key in to_remove:
-            # Clean up the global matcher.
-            self.global_matcher.remove(key)
-
-        return list((k, v) for k, v in all_occurences.items())
 
 
 def find_abbreviation(
@@ -141,8 +101,8 @@ def find_abbreviation(
     abbreviation and the span corresponding to the long form expansion, 
     or None if a match was not found.
     """
-    long_form = " ".join([x.text for x in long_form_candidate])
-    short_form = " ".join([x.text for x in short_form_candidate])
+    long_form = "".join([x.text_with_ws for x in long_form_candidate])
+    short_form = "".join([x.text_with_ws for x in short_form_candidate])
 
     long_index = len(long_form) - 1
     short_index = len(short_form) - 1
@@ -155,14 +115,14 @@ def find_abbreviation(
     )
 
     if not bounds_idx:
-        return short_form_candidate, None
+        return
 
     start_idx, end_idx = bounds_idx
     start, end = span_idx2i(long_form_candidate, start_idx, end_idx)
 
     return (
-        short_form_candidate,
         long_form_candidate[start:end],
+        short_form_candidate,
     )
 
 
@@ -180,6 +140,7 @@ def _find_abbreviation(
     short_index_reset = short_index
     long_index_end = long_index  # alnum bounds
     has_internal_match = False
+    jumps = {}
     while short_index >= 0 and long_index >= 0:
         # Get next abbreviation char to check
         short_char = short_form[short_index].lower()
@@ -188,6 +149,13 @@ def _find_abbreviation(
             short_index -= 1
             continue
         long_char = long_form[long_index].lower()
+        # Don't let there be many unabbreviated words
+        if long_char.isspace():
+            jump = jumps.setdefault(short_index, 0)
+            jump += 1
+            if jump > 2:
+                break
+            jumps[short_index] = jump
         is_starting_char = (
             True
             if long_index == 0
@@ -211,22 +179,31 @@ def _find_abbreviation(
         if short_index == 0 and not is_starting_char:
             long_index -= 1
             continue
-        if long_index == 0:
-            long_index -= 1
-            short_index -= 1
-        elif long_index > 0:
-            long_index -= 1
-            short_index -= 1
-            if not is_starting_char:
-                has_internal_match = True
-    if short_index >= 0:
+        long_index -= 1
+        short_index -= 1
+        if not is_starting_char:
+            has_internal_match = True
+    # In case it didn't end at the starting
+    # of a word, move it a step ahead
+    if long_index >= 0 and not long_form[long_index].isalnum():
+        long_index += 1
+    # In case the abbreviation doesn't fully match
+    # or it doesn't match from a starting char
+    # finding fails
+    if (
+        short_index >= 0
+        or long_index > 0
+        and long_form[long_index - 1].isalnum()
+    ):
         return
-    return max(long_index, 0), long_index_end + 1
+    long_start = max(long_index, 0)
+    long_end = long_index_end + 1
+    return long_start, long_end
 
 
 def _filter_matches(
-    matcher_output: List[Tuple[int, int, int]], doc: Doc
-) -> List[Tuple[Span, Span]]:
+    matcher_output: Iterable[Tuple[int, int, int]], doc: Doc
+) -> Iterable[Tuple[Span, Span]]:
     # Filter into two cases:
     # 1. <Short Form> ( <Long Form> )
     # 2. <Long Form> (<Short Form>) [this case is most common].
@@ -237,10 +214,10 @@ def _filter_matches(
         # Ignore spans with more than 8 words in.
         if end - start > 8:
             continue
-        if end - start > 3:
+        if end - start > 1:
             # Long form is inside the parens.
             # Take two words before.
-            short_form_candidate = doc[start - 3 : start - 1]
+            short_form_candidate = doc[start - 2 : start - 1]
             if _short_form_filter(short_form_candidate):
                 candidates.append((doc[start:end], short_form_candidate))
         else:
@@ -260,9 +237,61 @@ def _filter_matches(
     return candidates
 
 
+def _find_matches_for(
+    filtered: Iterable[Tuple[Span, Span]], doc: Doc
+) -> Iterable[Tuple[Span, Set[Span]]]:
+    matches = []
+    seen = {}
+    start_seen = {}
+    global_matcher = Matcher(doc.vocab)
+    for (long_candidate, short_candidate) in filtered:
+        abbreviation = find_abbreviation(long_candidate, short_candidate)
+        # We look for abbreviations, so...
+        if abbreviation is None:
+            continue
+        global_search = {}
+        long_form, short_form = abbreviation
+        if short_form.start not in start_seen:
+            global_search[short_form] = long_form
+        if long_form.start not in start_seen:
+            global_search[long_form] = short_form
+        # Look for each new abbreviation globally to find lone ones
+        for form_seen, form_search in global_search.items():
+            start_seen.setdefault(form_seen.start)
+            # We've already seen this
+            if form_seen.text in seen:
+                continue
+            seen.setdefault(form_seen.text, form_seen)
+            pattern = [{"TEXT": t.text} for t in form_search]
+            global_matcher.add(form_seen.text, [pattern])
+        matches.append((long_form, short_form))
+    # Search for lone abbreviations globally
+    for key, start, end in global_matcher(doc):
+        # We've already found this match
+        if start in start_seen:
+            continue
+        text = doc.vocab.strings[key]
+        # Never seen, skip
+        if text not in seen:
+            continue
+        already_seen = seen[text]
+        global_match = Span(doc, start, end)
+        start_seen.setdefault(global_match.start)
+        seen.setdefault(global_match.text, global_match)
+        # Short form should be the shortest
+        if len(already_seen) < len(global_match):
+            short_form = already_seen
+            long_form = global_match
+        else:
+            short_form = global_match
+            long_form = already_seen
+        matches.append((long_form, short_form))
+    yield from sorted(matches, key=lambda x: x[0].start)
+
+
 def _short_form_filter(span: Span) -> bool:
     # All words are between length 2 and 10
-    if not all([2 < len(x) < 10 for x in span]):
+    if not all([2 <= len(x) < 10 for x in span]):
         return False
     # At least one word is alpha numeric
     if not any([x.is_alpha for x in span]):

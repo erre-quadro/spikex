@@ -42,7 +42,6 @@ def span_idx2i(
 
 def idx2i(source: Union[Doc, Span, List[Token]], idx: int):
     max_i = len(source)
-    offset_i = source[0].i
     offset_idx = source[0].idx
 
     def _idx2i(_idx, start, end):

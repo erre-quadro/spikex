@@ -1,4 +1,4 @@
-Welcome to respacy's documentation!
+Welcome to spikex's documentation!
 ======================================
 
 .. toctree::

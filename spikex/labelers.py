@@ -3,7 +3,7 @@ from spacy.tokens import Doc, Span, Token
 from .matcher import Matcher
 
 
-class Labeler:
+class PatternLabeler:
     def __init__(self, vocab, validate=None):
         Doc.set_extension("labelings", default=[], force=True)
         Token.set_extension("labels", default=[], force=True)
@@ -42,7 +42,7 @@ class Labeler:
         Doc
             The doc after labeling.
         """
-        matches = self._matcher(doc, best_sort=True)
+        matches = self._matcher(doc)
         for key, start, end in matches:
             label = doc.vocab.strings[key]
             span = Span(doc, start, end, label)

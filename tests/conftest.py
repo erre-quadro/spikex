@@ -22,7 +22,7 @@ def pytest_runtest_setup(item):
             pytest.skip("need --%s option to run" % opt)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def nlp():
     return spacy.load("en_core_web_sm")
 
