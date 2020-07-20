@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use respacy in a project::
+To use spikex in a project::
 
-    import respacy
+    import spikex

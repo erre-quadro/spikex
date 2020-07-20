@@ -1,4 +1,4 @@
-from respacy.labelers import PatternLabeler
+from spikex.labelers import PatternLabeler
 
 
 def test_labelings(nlp):

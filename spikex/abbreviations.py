@@ -2,7 +2,7 @@ from typing import Iterable, Optional, Set, Tuple, Union
 
 from spacy.tokens import Doc, Span
 
-from respacy.matcher import Matcher
+from spikex.matcher import Matcher
 
 from .util import span_idx2i
 
@@ -60,8 +60,6 @@ class AbbreviationDetector:
 
     def __call__(self, doc: Doc) -> Doc:
         matches = self.matcher(doc)
-        for _, s, e in matches:
-            print(doc[s:e])
         matches_no_punct = set(
             [
                 (
@@ -73,66 +71,12 @@ class AbbreviationDetector:
             ]
         )
         filtered = _filter_matches(matches_no_punct, doc)
-        occurences = self.find_matches_for(filtered, doc)
+        occurences = _find_matches_for(filtered, doc)
 
         for long_form, short_form in occurences:
             short_form._.long_form = long_form
             doc._.abbreviations.append(short_form)
         return doc
-
-    def find_matches_for(
-        self, filtered: Iterable[Tuple[Span, Span]], doc: Doc
-    ) -> Iterable[Tuple[Span, Set[Span]]]:
-        matches = []
-        seen = {}
-        start_seen = {}
-        global_matcher = Matcher(doc.vocab)
-        for (long_candidate, short_candidate) in filtered:
-            long_form, short_form = find_abbreviation(
-                long_candidate, short_candidate
-            )
-            # We look for abbreviations, so...
-            if short_form is None:
-                continue
-            if long_form is None:
-                continue
-            global_search = {}
-            if short_form.start not in start_seen:
-                global_search[short_form] = long_form
-            if long_form.start not in start_seen:
-                global_search[long_form] = short_form
-            # Look for each new abbreviation globally to find lone ones
-            for form_seen, form_search in global_search.items():
-                start_seen.setdefault(form_seen.start)
-                # We've already seen this
-                if form_seen.text in seen:
-                    continue
-                seen.setdefault(form_seen.text, form_seen)
-                pattern = [{"TEXT": t.text} for t in form_search]
-                global_matcher.add(form_seen.text, [pattern])
-            matches.append((long_form, short_form))
-        # Search for lone abbreviations globally
-        for key, start, end in global_matcher(doc):
-            # We've already found this match
-            if start in start_seen:
-                continue
-            text = doc.vocab.strings[key]
-            # Never seen, skip
-            if text not in seen:
-                continue
-            already_seen = seen[text]
-            global_match = Span(doc, start, end)
-            start_seen.setdefault(global_match.start)
-            seen.setdefault(global_match.text, global_match)
-            # Short form should be the shortest
-            if len(already_seen) < len(global_match):
-                short_form = already_seen
-                long_form = global_match
-            else:
-                short_form = global_match
-                long_form = already_seen
-            matches.append((long_form, short_form))
-        yield from sorted(matches, key=lambda x: x[0].start)
 
 
 def find_abbreviation(
@@ -171,7 +115,7 @@ def find_abbreviation(
     )
 
     if not bounds_idx:
-        return None, short_form_candidate
+        return
 
     start_idx, end_idx = bounds_idx
     start, end = span_idx2i(long_form_candidate, start_idx, end_idx)
@@ -291,6 +235,58 @@ def _filter_matches(
             long_form_candidate = doc[long_start:long_end]
             candidates.append((long_form_candidate, doc[start:end]))
     return candidates
+
+
+def _find_matches_for(
+    filtered: Iterable[Tuple[Span, Span]], doc: Doc
+) -> Iterable[Tuple[Span, Set[Span]]]:
+    matches = []
+    seen = {}
+    start_seen = {}
+    global_matcher = Matcher(doc.vocab)
+    for (long_candidate, short_candidate) in filtered:
+        abbreviation = find_abbreviation(long_candidate, short_candidate)
+        # We look for abbreviations, so...
+        if abbreviation is None:
+            continue
+        global_search = {}
+        long_form, short_form = abbreviation
+        if short_form.start not in start_seen:
+            global_search[short_form] = long_form
+        if long_form.start not in start_seen:
+            global_search[long_form] = short_form
+        # Look for each new abbreviation globally to find lone ones
+        for form_seen, form_search in global_search.items():
+            start_seen.setdefault(form_seen.start)
+            # We've already seen this
+            if form_seen.text in seen:
+                continue
+            seen.setdefault(form_seen.text, form_seen)
+            pattern = [{"TEXT": t.text} for t in form_search]
+            global_matcher.add(form_seen.text, [pattern])
+        matches.append((long_form, short_form))
+    # Search for lone abbreviations globally
+    for key, start, end in global_matcher(doc):
+        # We've already found this match
+        if start in start_seen:
+            continue
+        text = doc.vocab.strings[key]
+        # Never seen, skip
+        if text not in seen:
+            continue
+        already_seen = seen[text]
+        global_match = Span(doc, start, end)
+        start_seen.setdefault(global_match.start)
+        seen.setdefault(global_match.text, global_match)
+        # Short form should be the shortest
+        if len(already_seen) < len(global_match):
+            short_form = already_seen
+            long_form = global_match
+        else:
+            short_form = global_match
+            long_form = already_seen
+        matches.append((long_form, short_form))
+    yield from sorted(matches, key=lambda x: x[0].start)
 
 
 def _short_form_filter(span: Span) -> bool:

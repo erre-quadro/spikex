@@ -10,7 +10,6 @@ autoflake = "*"
 black = "*"
 bump2version = "*"
 coverage = "*"
-en-core-web-sm = {file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.2.0/en_core_web_sm-2.2.0.tar.gz"}
 invoke = "*"
 isort = "*"
 mock = "*"
@@ -22,14 +21,24 @@ sphinx = "*"
 vulture = "*"
 wheel = "*"
 yapf = "*"
+en-core-web-sm = {file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz"}
+pytest-profiling = "*"
+spikex = {path = "."}
+simplewiki-core = {path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200701.tar.gz"}
 
 [packages]
 jsonschema = "*"
 regex = "*"
 typer = "*"
 wasabi = "*"
-respacy = {editable = true,path = "."}
-spacy = "*"
+spacy = ">=2.2.2,<3.0"
+ftfy = "*"
+smart-open = "*"
+cyac = "*"
+cython = "*"
+streamlit = "*"
+yarl = "*"
+python-igraph = "*"
 
 [pipenv]
 allow_prereleases = true

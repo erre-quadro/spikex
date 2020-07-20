@@ -1,1 +1,1 @@
-pipenv run python -m respacy profile $@
+pipenv run python -m spikex profile $@

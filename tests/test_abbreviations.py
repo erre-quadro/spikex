@@ -1,6 +1,6 @@
 import pytest
 
-from respacy.abbreviations import AbbreviationDetector, find_abbreviation
+from spikex.abbreviations import AbbreviationDetector, find_abbreviation
 
 
 def _get_long_form(nlp, text, short):
@@ -10,7 +10,10 @@ def _get_long_form(nlp, text, short):
     short_start = long_end + short.count("(")
     short_end = short_start + 1
     short_form = doc[short_start:short_end]
-    return find_abbreviation(long_form, short_form)[0]
+    abbr = find_abbreviation(long_form, short_form)
+    if abbr is not None:
+        return abbr[0]
+    return abbr
 
 
 @pytest.fixture(scope="module")
