@@ -23,7 +23,7 @@ def setup_package():
     meta = json_loads(meta_path.read_text())
     graph_name = meta["name"]
     pkg_data = list_files(path.join(graph_name, meta["fullname"]))
-    requirements = [f"spike{meta['spike_version']}"]
+    requirements = [f"spikex{meta['spikex_version']}"]
     copy(meta_path, path.join(graph_name))
     setup(
         name=graph_name,

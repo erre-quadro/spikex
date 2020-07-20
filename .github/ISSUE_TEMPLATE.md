@@ -1,4 +1,4 @@
-* spike version:
+* spikex version:
 * Python version:
 * Operating System:
 

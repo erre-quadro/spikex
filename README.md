@@ -1,3 +1,3 @@
-# SPIKE - SpaCy Pipes for Knowledge Extraction
+# SPIKEX - SpaCy Pipes for Knowledge Extraction
 
 Docs soon...

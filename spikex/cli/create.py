@@ -4,7 +4,7 @@ from igraph import Graph
 from srsly import json_dumps
 from wasabi import msg
 
-from .. import __version__ as spike_version
+from .. import __version__ as spikex_version
 from ..templates.wikigraph import get_meta
 from ..wikigraph import dumptools as dt
 from ..wikigraph.dumptools import WIKI_CL_TYPE_PAGE
@@ -57,8 +57,8 @@ def create_wikigraph(
     meta["name"] = graph_name
     meta["format"] = graph_format
     meta["version"] = version
-    meta["spike_version"] = f">={spike_version}"
-    meta["fullname"] = f"{graph_name}-{spike_version}"
+    meta["spikex_version"] = f">={spikex_version}"
+    meta["fullname"] = f"{graph_name}-{spikex_version}"
     meta["sources"].append("Wikipedia")
     meta_path = graph_path.joinpath("meta.json")
     meta_path.write_text(json_dumps(meta, indent=2))

@@ -6,7 +6,7 @@ from spacy.tokens import Doc
 from ..wikigraph import WikiGraph
 from .catches import WikiCatchX
 
-MIN_SCORE_THRESHOLD = 0.05
+MIN_SCORE_THRESHOLD = 0.10
 
 
 class WikiTopicX:

@@ -37,7 +37,10 @@ class WikiIdentX:
             if not topic_pages:
                 continue
             topic_pages.sort(key=lambda x: x[1], reverse=True)
-            idents.extend(((span, [topic_pages[0]]) for span in catch.spans))
+            best_page = topic_pages[0]
+            # if any(page[1] == best_page[1] for page in topic_pages[1:]):
+            #     continue
+            idents.extend(((span, best_page) for span in catch.spans))
         return sorted(idents, key=lambda x: x[0].start)
 
     def _get_topic_pages(self, topics, pages):
@@ -49,16 +52,8 @@ class WikiIdentX:
             common_count = len(common)
             if common_count == 0:
                 continue
-            # score = max(cand_ents[e] for e in common)  # sum(cand_ents[e] for e in common) / len(nbs_set) ** 0.8
-            # score = sum(cand_ents[e] for e in common) * common_count / len(nbs_set) ** 0.8
-            score = common_count / len(nbs) ** 0.8
-            if score < 0.01:
-                continue
+            scores = [topics[e] for e in common]
+            score = (min(scores) + max(scores)) / common_count
             topic_page = (page, score)
             topic_pages.append(topic_page)
-        # counts = topics.values()
-        # emin = min(counts)
-        # emax = max(counts)
-        # for mp in sorted(matching_pages, key=lambda x: x[2], reverse=True):
-        #     print("==>", self._wg.get_vertex(mp[0])["title"], "-", mp[2], ":", len(mp[1]), " - avg:", (emin+emax)/2)
         return topic_pages

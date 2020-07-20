@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 SETUP_FILE = ROOT_DIR.joinpath("setup.py")
 TEST_DIR = ROOT_DIR.joinpath("tests")
-SOURCE_DIR = ROOT_DIR.joinpath("spike")
+SOURCE_DIR = ROOT_DIR.joinpath("spikex")
 EXAMPLES_DIR = ROOT_DIR.joinpath("examples")
 TOX_DIR = ROOT_DIR.joinpath(".tox")
 COVERAGE_FILE = ROOT_DIR.joinpath(".coverage")

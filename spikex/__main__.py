@@ -13,7 +13,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         msg.info("Available commands", ", ".join(commands), exits=1)
     command = sys.argv.pop(1)
-    sys.argv[0] = "spike %s" % command
+    sys.argv[0] = "spikex %s" % command
     if command in commands:
         typer.run(commands[command])
     else:

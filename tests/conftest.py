@@ -2,7 +2,7 @@ import pytest
 import spacy
 from spacy.util import get_lang_class
 
-from spike.wikigraph import WikiGraph
+from spikex.wikigraph import WikiGraph
 
 
 def pytest_addoption(parser):

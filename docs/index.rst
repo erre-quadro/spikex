@@ -1,4 +1,4 @@
-Welcome to spike's documentation!
+Welcome to spikex's documentation!
 ======================================
 
 .. toctree::

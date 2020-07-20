@@ -2,8 +2,8 @@ import pytest
 from spacy.errors import MatchPatternError
 from spacy.util import get_json_validator, validate_json
 
-from spike.matcher import Matcher
-from spike.matcher._schemas import TOKEN_PATTERN_SCHEMA
+from spikex.matcher import Matcher
+from spikex.matcher._schemas import TOKEN_PATTERN_SCHEMA
 
 # (pattern, num errors with validation, num errors identified with minimal
 #  checks)

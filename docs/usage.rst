@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use spike in a project::
+To use spikex in a project::
 
-    import spike
+    import spikex

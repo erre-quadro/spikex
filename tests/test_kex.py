@@ -1,6 +1,6 @@
 import pytest
 
-from spike.kex import WikiCatchX, WikiIdentX, WikiLinkageX, WikiTopicX
+from spikex.kex import WikiCatchX, WikiIdentX, WikiLinkageX, WikiTopicX
 
 
 @pytest.fixture
@@ -15,24 +15,30 @@ def topicx(catchx):
 
 @pytest.fixture
 def doc(nlp):
-    return nlp("This is a test for knowledge extraction")
+    return nlp("This is a test for knowledge extraction.")
 
 
-def test_catches(doc, catchx):
+@pytest.fixture
+def expect_chunks():
+    return ["test", "knowledge"]
+
+
+def test_catches(doc, catchx, expect_chunks):
     catchx(doc)
-    assert len(doc._.catches) == 2
-    assert doc._.catches[0].score == 0.5
+    assert len(doc._.catches) == len(expect_chunks)
+    chunks = [catch.spans[0].text for catch in doc._.catches]
+    assert chunks == expect_chunks
 
 
-def test_idents(doc, catchx, topicx):
+def test_idents(doc, catchx, topicx, expect_chunks):
     identx = WikiIdentX(catchx, topicx)
     identx(doc)
-    for ident in doc._.idents:
-        print(ident)
-        print(ident[1])
-        print(identx.wg.get_head_vertex(ident[1][0][0])["title"])
+    assert len(doc._.idents) == len(expect_chunks)
+    chunks = [ident[0].text for ident in doc._.idents]
+    assert chunks == expect_chunks
 
 
+@pytest.mark.skip
 def test_linkage(nlp, topicx):
     linkagex = WikiLinkageX(topicx)
     doc1 = nlp("A sentence partially related to something")
@@ -42,6 +48,7 @@ def test_linkage(nlp, topicx):
     print(doc2._.linkage)
 
 
+@pytest.mark.skip
 def test_topics(doc, topicx):
     topicx(doc)
     for page, count in doc._.topics.items():

@@ -2,7 +2,7 @@ import pytest
 from mock import Mock
 from spacy.tokens import Doc, Token
 
-from spike.matcher import Matcher
+from spikex.matcher import Matcher
 
 
 @pytest.fixture

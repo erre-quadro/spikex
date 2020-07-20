@@ -1,1 +1,1 @@
-pipenv run python -m spike profile $@
+pipenv run python -m spikex profile $@

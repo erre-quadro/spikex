@@ -37,13 +37,6 @@ class WikiCatchX:
         self.filter_span_func = filter_span_func or (lambda x: True)
         self._setup()
 
-    # def _setup_new(self):
-    #     for page in self.wg.pages():
-    #         title = page["title"]
-    #         norm_title = _normalize_title(title)
-    #         pages = self._pages_map.setdefault(norm_title, {})
-    #         pages.setdefault(page.index)
-
     def _setup(self):
         for page in self.wg.pages():
             title = page["title"]
@@ -64,12 +57,6 @@ class WikiCatchX:
         for id_, start_idx, end_idx in self._trie.match_longest(text, ac_sep):
             start_i, end_i = _span_idx2i(start_idx, end_idx, idx2i, maxtlen)
             if start_i >= end_i:
-                print(
-                    start_idx,
-                    end_idx,
-                    text[start_idx:end_idx],
-                    text[start_idx - 5 : end_idx + 5],
-                )
                 continue
             span = doc[start_i:end_i]
             key = self._trie_pages_map[id_]
