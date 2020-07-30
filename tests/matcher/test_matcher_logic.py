@@ -241,8 +241,15 @@ def test_matching_engine_chain(matcher):
     assert matches[0][1:] == (1, 4)
 
 
-def test_matching_exact_regex(matcher, nlp):
+def test_matching_regex_bound(matcher, nlp):
     pattern = [{"REGEX": r"\b000\b"}]
     matcher.add("TEST_REGEX", [pattern])
     matches = matcher(nlp("000\t000;\n000. 0000, 000"))
     assert len(matches) == 4
+
+
+def test_matching_not_regex_escaping(matcher):
+    pattern = [{"TEXT": "[1] (2)"}]
+    matcher.add("TEST_ESCAPE", [pattern])
+    matches = matcher(Doc(matcher.vocab, words=["[1]", "(2)"]))
+    assert len(matches) == 1

@@ -450,7 +450,7 @@ def _attrs_xp_from_tokens_spec(tokens_spec):
                 elif p in _COMPARISON_PREDICATES:
                     yield attr, _xp_from_comparison(p, a)
             continue
-        yield attr, (re.escape(value) if attr in _REGEX_PREDICATES else value)
+        yield attr, (re.escape(value) if attr not in _REGEX_PREDICATES else value)
 
 
 def _xp_from_regex(regex):
