@@ -239,3 +239,10 @@ def test_matching_engine_chain(matcher):
     matcher.add("TEST_CHAIN", [pattern])
     matches = matcher(Doc(matcher.vocab, words=["aa", "a", "test", "b", "bb"]))
     assert matches[0][1:] == (1, 4)
+
+
+def test_matching_exact_regex(matcher, nlp):
+    pattern = [{"REGEX": r"\b000\b"}]
+    matcher.add("TEST_REGEX", [pattern])
+    matches = matcher(nlp("000\t000;\n000. 0000, 000"))
+    assert len(matches) == 4
