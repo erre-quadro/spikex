@@ -1,14 +1,13 @@
 from pathlib import Path
 
 import regex as re
-from spacy.language import component
 from spacy.tokens import Doc
 
 from .fragment import Fragment
 from .nbmodel import NBModel
 
 
-class Splitta(object):
+class SentX:
     def __init__(self, model_path: Path = None):
         self.model = NBModel.load(model_path)
 
@@ -31,6 +30,7 @@ def _sent_start_token_ids(fragments):
         if is_next_start:
             start_token_ids.append(frag.first_token.i)
             continue
+        
         is_next_start = (
             frag.label > thresh or frag.prediction > thresh or frag.is_sent_end
         )
@@ -56,14 +56,11 @@ def _get_fragments(doc):
         if len(curr_tokens) == 1:
             continue
         prev_token = curr_tokens[-2]
-        split_at_last = (
-            SPECIAL_SENT_STARTERS.search(token.text)
-            and (
-                prev_token.pos_ in ("NOUN", "PROPN", "ADJ", "ADV")
-                or "\n" in prev_token.text
-            )
+        split_at_last = SPECIAL_SENT_STARTERS.search(token.text) and (
+            prev_token.pos_ in ("NOUN", "PROPN", "ADJ", "ADV")
+            or "\n" in prev_token.text
         )
-        if not _is_sbd_hyp(token, prev_token) and not split_at_last:
+        if not _is_sentence_boundary(token, prev_token) and not split_at_last:
             continue
         last_frag = curr_frag
         if split_at_last:
@@ -89,15 +86,14 @@ def _get_fragments(doc):
     return fragments
 
 
-def _is_sbd_hyp(token, prev_token):
+def _is_sentence_boundary(token, prev_token):
     c = _unannotate(token.text)
     prev_word = prev_token.text
     if SAFE_ACRONYMS.search(prev_word) or SAFE_ABBRS.search(prev_word):
         return
-    if (
-        c.endswith(".")
-        or re.match(r".*\.[\"')\]]*$", c)
-    ) and not (SAFE_ACRONYMS.search(c) or SAFE_ABBRS.search(c)):
+    if (c.endswith(".") or re.match(r".*\.[\"')\]]*$", c)) and not (
+        SAFE_ACRONYMS.search(c) or SAFE_ABBRS.search(c)
+    ):
         return True
 
 

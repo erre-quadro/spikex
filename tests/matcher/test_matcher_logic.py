@@ -1,7 +1,6 @@
 import re
 
 import pytest
-from spacy.lang.en import English
 from spacy.tokens import Doc, Span
 
 from spikex.matcher import Matcher
