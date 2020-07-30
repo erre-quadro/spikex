@@ -38,6 +38,11 @@ def doc(en_tokenizer, text):
     return doc
 
 
+@pytest.fixture
+def matcher(en_vocab):
+    return Matcher(en_vocab)
+
+
 @pytest.mark.parametrize(
     "pattern,re_pattern",
     [
@@ -116,12 +121,11 @@ def test_operator_combos(en_vocab):
             assert not matches, (string, pattern_str)
 
 
-def test_matcher_end_zero_plus(en_vocab):
+def test_matcher_end_zero_plus(matcher):
     """Test matcher works when patterns end with * operator. (issue 1450)"""
-    matcher = Matcher(en_vocab)
     pattern = [{"ORTH": "a"}, {"ORTH": "b", "OP": "*"}]
     matcher.add("TSTEND", [pattern])
-    nlp = lambda string: Doc(en_vocab, words=string.split())
+    nlp = lambda string: Doc(matcher.vocab, words=string.split())
     assert len(matcher(nlp("a"))) == 1
     assert len(matcher(nlp("a b"))) == 1
     assert len(matcher(nlp("a c"))) == 1
@@ -130,11 +134,10 @@ def test_matcher_end_zero_plus(en_vocab):
     assert len(matcher(nlp("a b b"))) == 1
 
 
-def test_matcher_start_zero_plus(en_vocab):
-    matcher = Matcher(en_vocab)
+def test_matcher_start_zero_plus(matcher):
     pattern = [{"ORTH": "b", "OP": "*"}, {"ORTH": "c"}]
     matcher.add("TSTEND", [pattern])
-    nlp = lambda string: Doc(en_vocab, words=string.split())
+    nlp = lambda string: Doc(matcher.vocab, words=string.split())
     assert len(matcher(nlp("c"))) == 1
     assert len(matcher(nlp("b c"))) == 1
     assert len(matcher(nlp("a c"))) == 1
@@ -143,11 +146,10 @@ def test_matcher_start_zero_plus(en_vocab):
     assert len(matcher(nlp("b b c"))) == 1
 
 
-def test_matcher_start_zero_plus_not_in(en_vocab):
-    matcher = Matcher(en_vocab)
+def test_matcher_start_zero_plus_not_in(matcher):
     pattern = [{"ORTH": {"NOT_IN": ["t", "z"]}, "OP": "*"}, {"ORTH": "c"}]
     matcher.add("TSTEND", [pattern])
-    nlp = lambda string: Doc(en_vocab, words=string.split())
+    nlp = lambda string: Doc(matcher.vocab, words=string.split())
     assert len(matcher(nlp("c"))) == 1
     assert len(matcher(nlp("b c"))) == 1
     assert len(matcher(nlp("z c"))) == 1
@@ -157,23 +159,20 @@ def test_matcher_start_zero_plus_not_in(en_vocab):
     assert len(matcher(nlp("a t z b c"))) == 1
 
 
-def test_matcher_sets_return_correct_tokens(en_vocab):
-    matcher = Matcher(en_vocab)
+def test_matcher_sets_return_correct_tokens(matcher):
     patterns = [
         [{"LOWER": {"IN": ["zero"]}}],
         [{"LOWER": {"IN": ["one"]}}],
         [{"LOWER": {"IN": ["two"]}}],
     ]
     matcher.add("TEST", patterns)
-    doc = Doc(en_vocab, words="zero one two three".split())
+    doc = Doc(matcher.vocab, words="zero one two three".split())
     matches = matcher(doc)
     texts = [Span(doc, s, e, label=L).text for L, s, e in matches]
     assert texts == ["zero", "one", "two"]
 
 
-def test_matcher_remove():
-    nlp = English()
-    matcher = Matcher(nlp.vocab)
+def test_matcher_remove(matcher, nlp):
     text = "This is a test case."
 
     pattern = [{"ORTH": "test"}, {"OP": "?"}]
@@ -197,15 +196,14 @@ def test_matcher_remove():
         matcher.remove("Rule")
 
 
-def test_matcher_zero_plus_double(en_vocab):
-    matcher = Matcher(en_vocab)
+def test_matcher_zero_plus_double(matcher):
     pattern = [
         {"ORTH": "a", "OP": "*"},
         {"ORTH": "b", "OP": "*"},
         {"ORTH": "c"},
     ]
     matcher.add("TSTEND", [pattern])
-    nlp = lambda string: Doc(en_vocab, words=string.split())
+    nlp = lambda string: Doc(matcher.vocab, words=string.split())
     assert len(matcher(nlp("c"))) == 1
     assert len(matcher(nlp("b c"))) == 1
     assert len(matcher(nlp("z c"))) == 1
@@ -214,14 +212,13 @@ def test_matcher_zero_plus_double(en_vocab):
     assert len(matcher(nlp("a b z c"))) == 1
 
 
-def test_matcher_zero_one_zero_plus(en_vocab):
-    matcher = Matcher(en_vocab)
+def test_matcher_zero_one_zero_plus(matcher):
     pattern = [
         {"ORTH": "a", "OP": "+"},
         {"ORTH": "b", "OP": "*"},
     ]
     matcher.add("TSTEND", [pattern])
-    nlp = lambda string: Doc(en_vocab, words=string.split())
+    nlp = lambda string: Doc(matcher.vocab, words=string.split())
     assert len(matcher(nlp("b"))) == 0
     assert len(matcher(nlp("a"))) == 1
     assert len(matcher(nlp("a b"))) == 1
@@ -233,13 +230,12 @@ def test_matcher_zero_one_zero_plus(en_vocab):
     assert len(matcher(nlp("a b b z"))) == 1
 
 
-def test_matching_engine_chain(en_vocab):
-    matcher = Matcher(en_vocab)
+def test_matching_engine_chain(matcher):
     pattern = [
         {"LENGTH": {"==": 1}, "OP": "*"},
         {"LOWER": "test"},
         {"LENGTH": {"==": 1}, "OP": "*"},
     ]
     matcher.add("TEST_CHAIN", [pattern])
-    matches = matcher(Doc(en_vocab, words=["aa", "a", "test", "b", "bb"]))
+    matches = matcher(Doc(matcher.vocab, words=["aa", "a", "test", "b", "bb"]))
     assert matches[0][1:] == (1, 4)

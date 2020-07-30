@@ -79,7 +79,8 @@ def _get_fragments(doc):
             fragments.append(last_frag)
     # last frag
     if len(curr_tokens) > 0:
-        fragments.append(curr_frag)
+        if curr_frag is not None:
+            fragments.append(curr_frag)
         curr_frag = Fragment(curr_tokens)
         curr_frag.label = int("<S>" in curr_tokens[-1].text)
     if curr_frag is not None:
