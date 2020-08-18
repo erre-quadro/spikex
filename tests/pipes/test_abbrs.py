@@ -1,6 +1,6 @@
 import pytest
 
-from spikex.abbreviations import AbbreviationDetector, find_abbreviation
+from spikex.pipes.abbrs import AbbrX, find_abbreviation
 
 
 def _get_long_form(nlp, text, short):
@@ -17,8 +17,8 @@ def _get_long_form(nlp, text, short):
 
 
 @pytest.fixture(scope="module")
-def detector(nlp):
-    return AbbreviationDetector(nlp)
+def abbrx(nlp):
+    return AbbrX(nlp)
 
 
 @pytest.mark.parametrize(
@@ -91,16 +91,16 @@ def test_abbreviations_bad_short_form(nlp, short):
         ("this is TC (too cool)", "TC", "too cool"),
     ],
 )
-def test_detection_single(detector, nlp, text, short, long):
-    doc = detector(nlp(text))
+def test_detection_single(abbrx, nlp, text, short, long):
+    doc = abbrx(nlp(text))
     assert len(doc._.abbreviations) == 1
     assert doc._.abbreviations[0].text == short
     assert doc._.abbreviations[0]._.long_form.text == long
 
 
-def test_detection_multiple(detector, nlp):
+def test_detection_multiple(abbrx, nlp):
     text = "this is my abbr (MA) and this is MA (my abbr)"
-    doc = detector(nlp(text))
+    doc = abbrx(nlp(text))
     assert len(doc._.abbreviations) == 2
     for abbr in doc._.abbreviations:
         assert abbr.text == "MA"
@@ -114,8 +114,8 @@ def test_detection_multiple(detector, nlp):
         ("too cool (TC) is cool, this is TC", "TC", "too cool"),
     ],
 )
-def test_detection_with_loners(detector, nlp, text, short, long):
-    doc = detector(nlp(text))
+def test_detection_with_loners(abbrx, nlp, text, short, long):
+    doc = abbrx(nlp(text))
     assert len(doc._.abbreviations) == 2
     for abbr in doc._.abbreviations:
         assert abbr.text == short
@@ -123,6 +123,6 @@ def test_detection_with_loners(detector, nlp, text, short, long):
 
 
 @pytest.mark.parametrize("text", [("this is not an abbreviation ABB-9V")])
-def test_detection_empty(detector, nlp, text):
-    doc = detector(nlp(text))
+def test_detection_empty(abbrx, nlp, text):
+    doc = abbrx(nlp(text))
     assert len(doc._.abbreviations) == 0

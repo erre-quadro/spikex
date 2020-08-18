@@ -52,8 +52,8 @@ def resolve_version(wiki, version):
     msg.fail(
         "Wikipedia dump version not found",
         f"Pick one of these: {', '.join(versions)}.",
+        exits=1,
     )
-    return
 
 
 def iter_page_props_dump_data(**kwargs):
@@ -126,6 +126,23 @@ def _get_wiki_dump_dl_url(t, **kwargs):
     return URL(_WIKI_DL_PATH.format(w=w, n=n, v=v))
 
 
+def _get_wiki_dump_obj(wiki_sql_dump_url, verbose=None):
+    if isinstance(wiki_sql_dump_url, Path):
+        if not wiki_sql_dump_url.exists():
+            raise FileNotFoundError
+        compress_obj = wiki_sql_dump_url.open("rb")
+        content_len = wiki_sql_dump_url.stat().st_size
+        if content_len == 0:
+            raise FileNotFoundError
+    elif isinstance(wiki_sql_dump_url, URL):
+        compress_obj = http_open(str(wiki_sql_dump_url), mode="rb")
+        content_len = int(compress_obj.response.headers.get("content-length"))
+    else:
+        raise ValueError
+    msg.text(f"from: {wiki_sql_dump_url}", show=verbose)
+    return compress_obj, content_len
+
+
 def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
     _kwargs = {**config, **kwargs}
     dumps_path = _kwargs["dumps_path"]
@@ -135,36 +152,44 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
     compress_bytes_read = 0
     dump_name = wiki_sql_dump_url.name
     msg.text(f"-> {dump_name}", show=verbose)
+    tqdm_disable = not verbose
+    tqdm_kwargs = {
+        "unit": "B",
+        "unit_scale": True,
+        "unit_divisor": 1024,
+        "disable": tqdm_disable,
+    }
     compress_obj, content_len = _get_wiki_dump_obj(wiki_sql_dump_url, verbose)
+    should_reopen_compress_obj = False
+    if dumps_path is not None:
+        if not dumps_path.exists():
+            dumps_path.mkdir()
+        dump_filepath = dumps_path.joinpath(dump_name)
+        if not dump_filepath.exists() or dump_filepath.stat().st_size == 0:
+            with tqdm(
+                desc="download and persist", total=content_len, **tqdm_kwargs,
+            ) as pbar, dump_filepath.open("wb") as fd:
+                bytes_read = 0
+                for chunk in compress_obj:
+                    fd.write(chunk)
+                    compress_bytes = compress_obj.tell()
+                    pbar.update(compress_bytes - bytes_read)
+                    bytes_read = compress_bytes
+            compress_obj.close()
+            should_reopen_compress_obj = True
+    if should_reopen_compress_obj:
+        compress_obj, content_len = _get_wiki_dump_obj(wiki_sql_dump_url)
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        tqdm_disable = not verbose
-        tqdm_kwargs = {
-            "unit": "B",
-            "unit_scale": True,
-            "unit_divisor": 1024,
-            "disable": tqdm_disable,
-        }
         with tqdm(
             desc="parse", total=content_len, **tqdm_kwargs,
         ) as pbar, compression_wrapper(compress_obj, "rb") as decompress_obj:
+            compress_bytes_read = 0
             for line in decompress_obj:
                 task = partial(_parsing_task, parse_fx=parse_fx)
                 fs.append(executor.submit(task, line.decode("latin-1")))
                 compress_bytes = compress_obj.tell()
                 pbar.update(compress_bytes - compress_bytes_read)
                 compress_bytes_read = compress_bytes
-        if dumps_path is not None:
-            compress_obj.seek(0)
-            if not dumps_path.exists():
-                dumps_path.mkdir()
-            dump_filepath = dumps_path.joinpath(dump_name)
-            if not dump_filepath.exists() or dump_filepath.stat().st_size == 0:
-                with msg.loading("saving dump..."), dump_filepath.open(
-                    "wb+"
-                ) as fd:
-                    for data in compress_obj:
-                        fd.write(data)
-        compress_obj.close()
         with tqdm(desc="wrap up", total=len(fs), disable=tqdm_disable) as pbar:
             for f in as_completed(fs):
                 for res in f.result():
@@ -173,24 +198,6 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
                     yield res
                 pbar.update(1)
     msg.good(dump_name, show=verbose)
-
-
-def _get_wiki_dump_obj(wiki_sql_dump_url, verbose):
-    if isinstance(wiki_sql_dump_url, Path):
-        if not wiki_sql_dump_url.exists():
-            raise FileNotFoundError
-        compress_obj = wiki_sql_dump_url.open("rb")
-        content_len = wiki_sql_dump_url.stat().st_size
-        if content_len == 0:
-            raise FileNotFoundError
-        msg.text(f"found locally at {wiki_sql_dump_url}", show=verbose)
-    elif isinstance(wiki_sql_dump_url, URL):
-        compress_obj = http_open(str(wiki_sql_dump_url), mode="rb")
-        content_len = int(compress_obj.response.headers.get("content-length"))
-        msg.text(f"download from: {wiki_sql_dump_url}", show=verbose)
-    else:
-        raise ValueError
-    return compress_obj, content_len
 
 
 def _parsing_task(line, parse_fx):

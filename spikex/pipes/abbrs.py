@@ -4,11 +4,12 @@ from spacy.tokens import Doc, Span
 
 from spikex.matcher import Matcher
 
-from .util import span_idx2i
+from ..util import span_idx2i
 
 
-class AbbreviationDetector:
+class AbbrX:
     """
+    *Strongly based on scispacy's AbbreviationDetector*.
     Detects abbreviations which are acronyms or by using the algorithm in 
     "A simple algorithm for identifying abbreviation definitions in biomedical 
     text.", (Schwartz & Hearst, 2003).
@@ -103,23 +104,18 @@ def find_abbreviation(
     """
     long_form = "".join([x.text_with_ws for x in long_form_candidate])
     short_form = "".join([x.text_with_ws for x in short_form_candidate])
-
     long_index = len(long_form) - 1
     short_index = len(short_form) - 1
-
     bounds_idx = _find_abbreviation(
         long_form=long_form,
         long_index=long_index,
         short_form=short_form,
         short_index=short_index,
     )
-
     if not bounds_idx:
         return
-
     start_idx, end_idx = bounds_idx
     start, end = span_idx2i(long_form_candidate, start_idx, end_idx)
-
     return (
         long_form_candidate[start:end],
         short_form_candidate,
@@ -198,6 +194,8 @@ def _find_abbreviation(
         return
     long_start = max(long_index, 0)
     long_end = long_index_end + 1
+    if long_start == long_end:
+        return
     return long_start, long_end
 
 

@@ -2,8 +2,12 @@ import importlib
 from itertools import combinations, product
 from typing import Iterable, Union
 
+import regex as re
+from cyac import Trie
 from igraph import Graph, Vertex
+from srsly import pickle_loads
 
+from . import dumptools as dt
 from .dumptools import WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE
 
 KIND_CATEGORY = WIKI_NS_KIND_CATEGORY
@@ -13,14 +17,61 @@ VertexType = Union[Vertex, int]
 
 
 class WikiGraph:
-    def __init__(self, graph_name):
+    def __init__(self):
+        self.g = Graph(directed=True)
+        self._t2p = {}
+        self._t = Trie(ignore_case=True)
+
+    def __getstate__(self):
+        return (self.g, self._t, self._t2p)
+
+    def __setstate__(self, state):
+        self.g, self._t, self._t2p = state
+
+    @staticmethod
+    def load(graph_name):
         kls = importlib.import_module(graph_name)
-        self.g = Graph.Read(kls.graph_path)
+        return pickle_loads(kls.path)
+
+    @staticmethod
+    def build(**kwargs):
+        kwargs["version"] = dt.resolve_version(
+            kwargs["wiki"], kwargs["version"]
+        )
+        wg = WikiGraph()
+        _make_graph_edges(wg.g, **kwargs)
+        _make_graph_vertices(wg.g, **kwargs)
+        wg.build_pages_trie()
+        return wg
+
+    def build_pages_trie(self):
+        t2id = {}
+        for page in self.pages():
+            norm_title = _normalize_title(page["title"])
+            if norm_title not in t2id:
+                id_ = self._t.insert(norm_title)
+                t2id[norm_title] = id_
+                self._t2p[id_] = set()
+            id_ = t2id[norm_title]
+            self._t2p[id_].add(page.index)
 
     def pages(self):
         yield from self.g.vs.select(kind_eq=KIND_PAGE)
 
-    def get_vertex(self, vertex: VertexType):
+    def categories(self):
+        yield from self.g.vs.select(kind_eq=KIND_CATEGORY)
+
+    def find_pages(self, text: str):
+        ac_sep = set([ord(p) for p in re.findall(r"\p{P}", text)])
+        for id_, start_idx, end_idx in self._pages_trie.match_longest(
+            text, ac_sep
+        ):
+            yield (start_idx, end_idx, self._trieid2pages[id_])
+
+    def find_vertex(self, title: str):
+        return self.g.vs.find(title=title)
+
+    def get_vertex(self, vertex: Union[int, str]):
         return self.g.vs[vertex] if isinstance(vertex, int) else vertex
 
     def get_head_vertex(self, vertex: VertexType):
@@ -36,22 +87,22 @@ class WikiGraph:
             return
         return self.g.vs.find(vx["redirect"])
 
-    def are_redirects(self, v1: VertexType, v2: VertexType):
-        vx1 = self.get_vertex(v1)
-        vx2 = self.get_vertex(v2)
-        return (
-            vx1["redirect"] == vx2["name"]
-            or vx2["redirect"] == vx1["name"]
-            or (
-                vx1["redirect"]
-                and vx2["redirect"]
-                and vx1["redirect"] == vx2["redirect"]
-            )
-        )
-
     def get_parents(self, vertex: VertexType):
         vx = self.get_head_vertex(vertex)
         return vx.neighbors(mode="OUT")
+
+    def get_ancestors(self, vertex: VertexType, until: int = 2):
+        def get_ancs(vx, left):
+            ancs = []
+            left -= 1
+            for parent in self.get_parents(vx):
+                ancs.append(parent)
+                if not left:
+                    continue
+                ancs += get_ancs(parent, left)
+            return set(ancs)
+
+        return list(get_ancs(vertex, until))
 
     def get_children(
         self,
@@ -182,3 +233,72 @@ class WikiGraph:
         )
         singles = [{v} for v in set.difference(vxs, seen)]
         return clusters + singles
+
+
+def _make_graph_vertices(g, **kwargs):
+    props = {}
+    for pageid, prop, value in dt.iter_page_props_dump_data(**kwargs):
+        page_props = props.setdefault(pageid, {})
+        page_props.setdefault(prop, value)
+    page_t2pid = {}
+    only_core = "only_core" in kwargs and kwargs["only_core"]
+    for ns_kind, pageid, title in dt.iter_page_dump_data(**kwargs):
+        wikidata = ""
+        if pageid in props:
+            page_props = props[pageid]
+            if only_core and (
+                "hiddencat" in page_props
+                or "disambiguation" in page_props
+                or "noindex" in page_props
+            ):
+                continue
+            if "wikibase_item" in page_props:
+                wikidata = page_props["wikibase_item"]
+        g.add_vertex(
+            pageid, kind=ns_kind, title=title, redirect="", wikidata=wikidata
+        )
+        if ns_kind == KIND_PAGE:
+            page_t2pid[title] = pageid
+    for sourceid, target_title in dt.iter_redirect_dump_data(**kwargs):
+        try:
+            source_vertex = g.vs.find(sourceid)
+            targetid = page_t2pid[target_title]
+        except (KeyError, ValueError):
+            continue
+        source_vertex["redirect"] = targetid
+    return g
+
+
+def _make_graph_edges(g, **kwargs):
+    edges = []
+    cats_with_pages = set()
+    filtr = lambda x: x["kind"] == KIND_CATEGORY
+    t2v = {v["title"]: v for v in g.vs.select(filtr)}
+    iter_cl_data = dt.iter_categorylinks_dump_data(**kwargs)
+    for cl_type, sourceid, target_title in iter_cl_data:
+        try:
+            source_vertex = g.vs.find(sourceid)
+            target_vertex = t2v[target_title]
+        except (KeyError, ValueError):
+            continue
+        if cl_type == dt.WIKI_CL_TYPE_PAGE:
+            cats_with_pages.add(target_vertex)
+        edges.append((source_vertex, target_vertex))
+    g.add_edges(edges)
+    if "only_core" in kwargs and kwargs["only_core"]:
+        vertices = set(t2v.values())
+        diff = set.difference(vertices, cats_with_pages)
+        g.delete_vertices(diff)
+    return g
+
+
+def _normalize_title(title: str):
+    open_at = title.find("(")
+    if open_at < 0:
+        return title
+    close_at = title.find(")", open_at)
+    if close_at < 0:
+        return title
+    a = title[: open_at - 1]
+    b = title[close_at + 1 :]
+    return "".join((a, b)).lower()

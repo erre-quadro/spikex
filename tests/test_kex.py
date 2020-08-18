@@ -15,41 +15,35 @@ def topicx(catchx):
 
 @pytest.fixture
 def doc(nlp):
-    return nlp("This is a test for knowledge extraction.")
+    return nlp("An apple a day keeps the doctor away")
 
 
-@pytest.fixture
-def expect_chunks():
-    return ["test", "knowledge"]
-
-
-def test_catches(doc, catchx, expect_chunks):
+def test_catches(doc, catchx):
     catchx(doc)
-    assert len(doc._.catches) == len(expect_chunks)
     chunks = [catch.spans[0].text for catch in doc._.catches]
-    assert chunks == expect_chunks
+    assert chunks == ["apple", "day", "doctor"]
 
 
-def test_idents(doc, catchx, topicx, expect_chunks):
-    identx = WikiIdentX(catchx, topicx)
-    identx(doc)
-    assert len(doc._.idents) == len(expect_chunks)
-    chunks = [ident[0].text for ident in doc._.idents]
-    assert chunks == expect_chunks
-
-
-@pytest.mark.skip
-def test_linkage(nlp, topicx):
-    linkagex = WikiLinkageX(topicx)
-    doc1 = nlp("A sentence partially related to something")
-    doc2 = nlp("A sentence related maybe or maybe not")
-    linkagex([doc1, doc2])
-    print(doc1._.linkage)
-    print(doc2._.linkage)
-
-
-@pytest.mark.skip
 def test_topics(doc, topicx):
     topicx(doc)
-    for page, count in doc._.topics.items():
-        print(topicx.wg.get_head_vertex(page)["title"], "-", count)
+    assert len(doc._.topics) == 4
+    titles = set([topicx.wg.get_vertex(p)["title"] for p in doc._.topics])
+    assert titles == set(
+        ["Basic_English", "Basic_English_850_words", "Units_of_time", "Apples"]
+    )
+
+
+def test_idents(doc, topicx):
+    WikiIdentX(topicx=topicx)(doc)
+    chunks = [ident[0].text for ident in doc._.idents]
+    assert chunks == ["apple", "day"]
+
+
+def test_linkage(doc, nlp, topicx):
+    linkagex = WikiLinkageX(topicx)
+    doc2 = nlp("Pear juice is very tasty")
+    doc3 = nlp("Megatron is a Transformers")
+    linkagex([doc, doc2, doc3])
+    assert doc._.linkage
+    assert doc2._.linkage
+    assert doc3._.linkage

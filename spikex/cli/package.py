@@ -12,8 +12,11 @@ from ..templates.wikigraph import pkg_path
 def package_wikigraph(input_path: Path, output_path: Path, force: bool = None):
     if not input_path or not input_path.exists():
         msg.fail("Can't locate graph data", input_path, exits=1)
-    if not output_path or not output_path.exists():
-        msg.fail("Output directory not found", output_path, exits=1)
+    if not output_path:
+        msg.fail("Output directory is missing", output_path, exits=1)
+    if not output_path.exists():
+        output_path.mkdir()
+        msg.good("Created output directory: {}".format(output_path))
     meta_path = input_path / "meta.json"
     if not meta_path.exists():
         msg.fail("Can't find graph meta.json", meta_path, exits=1)

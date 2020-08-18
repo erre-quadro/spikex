@@ -1,3 +1,4 @@
+from math import log, sqrt
 from typing import Callable, Iterable
 
 from spacy.tokens import Doc
@@ -14,7 +15,7 @@ class WikiLinkageX:
         graph_name: str = None,
     ):
         Doc.set_extension("linkage", default={}, force=True)
-        self._topicx = topicx or WikiTopicX(graph, graph_name)
+        self.topicx = topicx or WikiTopicX(graph=graph, graph_name=graph_name)
 
     def __call__(
         self,
@@ -25,7 +26,7 @@ class WikiLinkageX:
         docs_data = {}
         topics = set()
         iter_docs = (
-            self._topicx(doc) if not doc._.topics or refresh else doc
+            self.topicx(doc) if not doc._.topics or refresh else doc
             for doc in docs
         )
         for doc in iter_docs:
@@ -43,37 +44,54 @@ class WikiLinkageX:
 
 
 def _default_correl_func(docs_data):
+    def inject_tfidf(data):
+        for topic, tf in {**data}.items():
+            if topic not in idfs:
+                del data[topic]
+                continue
+            idf = idfs[topic]
+            if not idf:
+                idf = 1
+            data[topic] = tf / idf
+
     linkage = {}
+    idfs = {}
+    for topics in docs_data.values():
+        for topic in topics:
+            if topic not in idfs:
+                idfs[topic] = 0
+            idfs[topic] += 1
+    tot_docs = len(docs_data)
+    idfs = {topic: log(tot_docs / freq) for topic, freq in idfs.items()}
+    injected = set()
     for doc, data in docs_data.items():
+        if doc not in injected:
+            inject_tfidf(data)
+            injected.add(doc)
+        topics = set(data)
+        if len(topics) == 0:
+            continue
         doc_linkage = linkage.setdefault(doc, {})
         for other_doc, other_data in docs_data.items():
             if doc == other_doc or other_doc in doc_linkage:
                 continue
-            topics = set([t for t in data if data[t] > 2])
-            other_topics = set([t for t in other_data if other_data[t] > 2])
-            common_topics = set.intersection(topics, other_topics)
-            if (
-                len(topics) == 0
-                or len(other_topics) == 0
-                or len(common_topics) == 0
-            ):
+            if other_doc not in injected:
+                inject_tfidf(other_data)
+                injected.add(other_doc)
+            other_topics = set(other_data)
+            common_topics = topics.intersection(other_topics)
+            if len(other_topics) == 0 or len(common_topics) == 0:
                 continue
-            k1 = 0
-            good_topics = {}
-            for t in common_topics:
-                k = (data.get(t, 0) + other_data.get(t, 0)) / 2
-                good_topics.setdefault(t, k)
-                k1 += k
-            k2 = sum(
-                (data.get(e, 0) + other_data.get(e, 0)) / 2 for e in topics
+            all_topics = topics.union(other_topics)
+            # correlation by cosine similarity
+            dotprod = sum(
+                data.get(k, 0) * other_data.get(k, 0) for k in all_topics
             )
-            correl = k1 / k2
-            good_topics = [
-                (k, v)
-                for k, v in sorted(
-                    good_topics.items(), key=lambda x: x[1], reverse=True
-                )
-            ]
+            maga = sqrt(sum(data.get(k, 0) ** 2 for k in all_topics))
+            magb = sqrt(sum(other_data.get(k, 0) ** 2 for k in all_topics))
+            correl = dotprod / (maga * magb)
+            good_topics = [(t, data[t] + other_data[t]) for t in common_topics]
+            good_topics.sort(key=lambda x: x[1], reverse=True)
             linkage_data = (correl, good_topics)
             doc_linkage.setdefault(other_doc, linkage_data)
             other_doc_linkage = linkage.setdefault(other_doc, {})

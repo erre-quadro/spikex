@@ -1,4 +1,5 @@
 from collections import Counter
+from difflib import get_close_matches
 from math import floor
 
 from spacy.tokens import Doc
@@ -18,17 +19,56 @@ class WikiTopicX:
         refresh: bool = None,
     ):
         Doc.set_extension("topics", default={}, force=True)
-        self._catchx = catchx or WikiCatchX(graph, graph_name)
-        self.wg = self._catchx.wg
+        self.catchx = catchx or WikiCatchX(graph=graph, graph_name=graph_name)
+        self.wg = self.catchx.wg
         self.refresh = refresh
 
     def __call__(self, doc: Doc):
         if not doc._.catches or self.refresh:
-            self._catchx.min_score = MIN_SCORE_THRESHOLD
-            self._catchx(doc)
+            self.catchx.min_score = MIN_SCORE_THRESHOLD
+            self.catchx(doc)
         if not doc._.topics or self.refresh:
-            doc._.topics = self._get_topics(doc._.catches)
+            doc._.topics = self._new_get_topics(doc._.catches)
         return doc
+
+    def _new_get_topics(self, catches):
+        topics = {}
+        for catch in catches:
+            should_skip = False
+            title2page = {
+                self.wg.get_vertex(p)["title"]: p for p in catch.pages
+            }
+            for title in title2page.keys():
+                if "disambiguation" in title:
+                    should_skip = True
+                    break
+            if should_skip:
+                continue
+            ranker = Counter()
+            for span in catch.spans:
+                m = get_close_matches(span.text, title2page.keys(), n=1)
+                if not m:
+                    continue
+                ranker.update([m[0]])
+            if not ranker:
+                continue
+            rank = ranker.most_common(1)
+            if not rank:
+                continue
+            title = rank[0][0]
+            page = title2page[title]
+            cats = self.wg.get_ancestors(page)
+            tot_occurs = len(catch.spans)
+            for cat in cats:
+                if cat not in topics:
+                    topics[cat] = 0
+                topics[cat] += tot_occurs
+        good_topics = {}
+        total_spans = sum(len(catch.spans) for catch in catches)
+        for e, c in topics.items():
+            score = c / total_spans
+            good_topics[e] = score
+        return good_topics
 
     def _get_topics(self, catches):
         freqs = {}
@@ -47,12 +87,13 @@ class WikiTopicX:
                 if not catch:
                     exhausted = True
                     break
-                freq = len(catch.spans)
+                count = len(catch.spans)
                 catch_score = catch.score
-                nbcs = self.wg.get_neighborcats(catch.pages, large=True)
-                for nb in nbcs:
+                for nb in self.wg.get_neighborcats(catch.pages, large=True):
                     for e in nb:
-                        freqs.setdefault(e, freq)
+                        if e not in freqs:
+                            freqs[e] = 0
+                        freqs[e] += count
                         layer_ents.append(e)
             curr_score /= 2
             topics.update([e for e in layer_ents if not topics or e in topics])
@@ -65,4 +106,9 @@ class WikiTopicX:
                 if c >= best_count * curr_score / 2:
                     continue
                 del topics[e]
-        return {e: c * floor(freqs[e] ** 0.75) for e, c in topics.items()}
+        total_spans = sum(len(catch.spans) for catch in catches)
+        good_topics = {}
+        for e, c in topics.items():
+            count = floor(c / total_spans)
+            good_topics[e] = count
+        return good_topics

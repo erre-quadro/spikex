@@ -359,9 +359,9 @@ _ZERO_ONE = "?"
 _ZERO_PLUS = "*"
 
 # Regex
-_XP_ONE_TOKEN = r"[^ ]+"
-_XP_TOKEN_START = r"(?:[ ]|^)"
-_XP_TOKEN_DELIM = r"(?:[ ]|^|$)"
+_XP_ONE_TOKEN = r"[^\s]+"
+_XP_TOKEN_START = r"(?:\s|^)"
+_XP_TOKEN_DELIM = r"(?:\s|^|$)"
 
 # Predicates
 _REGEX_PREDICATES = ("REGEX",)
@@ -381,7 +381,10 @@ def _finalize_pattern_spec(spec):
                 if q not in _ANCHOR_QS:
                     continue
                 anchor_gs.add(i + 1)
-        regex = "".join([_XP_TOKEN_START, *(x[0] for x in xps)])
+        if attr in _REGEX_PREDICATES:
+            regex = "".join([x[0] for x in xps])
+        else:
+            regex = "".join([_XP_TOKEN_START, *(x[0] for x in xps)])
         flags = re.U | re.M
         if attr in ("LENGTH", "LOWER"):
             flags |= re.I
@@ -447,7 +450,9 @@ def _attrs_xp_from_tokens_spec(tokens_spec):
                 elif p in _COMPARISON_PREDICATES:
                     yield attr, _xp_from_comparison(p, a)
             continue
-        yield attr, (re.escape(value) if attr != "REGEX" else value)
+        yield attr, (
+            re.escape(value) if attr not in _REGEX_PREDICATES else value
+        )
 
 
 def _xp_from_regex(regex):

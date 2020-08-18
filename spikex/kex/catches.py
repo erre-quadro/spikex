@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from typing import Callable, Union
 
 import regex as re
-from cyac import Trie
 from spacy.tokens import Doc, Span, Token
+from srsly import pickle_loads
 
 from ..matcher import Matcher
 from ..wikigraph import WikiGraph
@@ -24,44 +24,29 @@ class WikiCatchX:
         max_score: float = None,
         min_score: float = None,
         refresh: bool = None,
-        filter_span_func: Callable = None,
+        filter_span: Callable = None,
     ):
         Doc.set_extension("catches", default=[], force=True)
-        self._trie = Trie(ignore_case=True)
-        self._trie_pages_map = {}
-        self._pages_map = {}
         self.wg = graph or WikiGraph(graph_name)
         self.max_score = max_score or 1.0
         self.min_score = min_score or 0.0
         self.refresh = refresh
-        self.filter_span_func = filter_span_func or (lambda x: True)
-        self._setup()
-
-    def _setup(self):
-        for page in self.wg.pages():
-            title = page["title"]
-            norm_title = _normalize_title(title)
-            if norm_title not in self._pages_map:
-                self._pages_map[norm_title] = set()
-                id_ = self._trie.insert(norm_title)
-                self._trie_pages_map[id_] = norm_title
-            self._pages_map[norm_title].add(page.index)
+        self.filter_span = filter_span or (lambda x: True)
 
     def __call__(self, doc: Doc):
         if doc._.catches and not self.refresh:
             return doc
         idx2i, text = _preprocess(doc, True)
-        ac_sep = set([ord("_")])
         maxtlen = len(text)
         catches = {}
-        for id_, start_idx, end_idx in self._trie.match_longest(text, ac_sep):
+        for start_idx, end_idx, pages in self._wg.find_pages(text):
+            print(text[start_idx:end_idx])
             start_i, end_i = _span_idx2i(start_idx, end_idx, idx2i, maxtlen)
             if start_i >= end_i:
                 continue
             span = doc[start_i:end_i]
             key = self._trie_pages_map[id_]
-            catch = text[start_idx:end_idx]
-            if not self.filter_span_func(span):
+            if not self.filter_span(span):
                 continue
             data = catches.setdefault(key, {})
             spans = data.setdefault("spans", set())
@@ -73,25 +58,38 @@ class WikiCatchX:
             pages = data.setdefault("pages", {})
             for vid in pids:
                 vx = self.wg.get_vertex(vid)
-                head_vx = self.wg.get_head_vertex(vx)
-                if head_vx.index in pages:
-                    continue
-                if not _is_good_catch(vx, catch):
+                if vx.index in pages:
                     continue
                 nfactor += 1
-                pages.setdefault(head_vx.index)
+                pages.setdefault(vx.index)
             span_score = (1 / nfactor) if nfactor else 0
             if span_score < self.min_score or span_score > self.max_score:
                 del catches[key]
                 continue
             data.setdefault("score", span_score)
+        idx2data = {}
         matcher = Matcher(doc.vocab)
         catches = list(catches.values())
         for i, catch in enumerate(catches):
             for span in catch["spans"]:
+                print("->", span)
                 matcher.add(i, [[{"TEXT": span.text}]])
         for i, start, end in matcher(doc):
+            mlen = end - start
+            for j in range(start, end):
+                if j not in idx2data:
+                    continue
+                catch_i, span = idx2data[j]
+                if len(span) > mlen:
+                    continue
+                catch = catches[catch_i]
+                catch["spans"].remove(span)
+            if i in idx2data:
+                continue
             span = doc[start:end]
+            data = (i, span)
+            for idx in range(start, end):
+                idx2data[idx] = data
             catch = catches[i]
             catch["spans"].add(span)
         doc._.catches = [
@@ -122,9 +120,7 @@ def _remove_title_detailing(title: str):
 
 
 def _preprocess(source: Union[Doc, Span], stopwords: bool):
-    idx2i, text = _preprocess_maps(source, stopwords)
-    text = re.sub(r"[\n\s\p{P}]", "_", text)
-    return idx2i, text
+    return _preprocess_maps(source, stopwords)
 
 
 def _preprocess_maps(source: Union[Doc, Span], stopwords: bool):
@@ -139,15 +135,31 @@ def _preprocess_maps(source: Union[Doc, Span], stopwords: bool):
         curr_idx += len(value)
     idx2i[curr_idx] = len(source)
     text = "".join(text_tokens)
-    return idx2i, text
+    return idx2i, text.replace(" ", "_")
 
 
 def _get_token_text_norm(token: Token, stopwords: bool):
-    if stopwords and token.is_stop:
-        return "_"
-    if token.pos_ not in ("NOUN", "PROPN"):
-        return token.lower_
-    return token.lemma_
+    # if stopwords and (
+    #     token.pos_
+    #     in (
+    #         "ADP",
+    #         "ADV",
+    #         "AUX",
+    #         "CCONJ",
+    #         "CONJ",
+    #         "DET",
+    #         "INTJ",
+    #         "PART",
+    #         "PUNCT",
+    #         "PRON",
+    #         "SCONJ",
+    #         "SPACE",
+    #         "X",
+    #     )
+    #     or (token.pos_ == "VERB" and token.tag_ != "VBG")
+    # ):
+    #     return "_"
+    return token.lower_
 
 
 def _span_idx2i(start_idx, end_idx, idx2i, maxlen):

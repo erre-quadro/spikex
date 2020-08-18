@@ -4,10 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
-"flake8" = "*"
+flake8 = "*"
 alabaster = "*"
 autoflake = "*"
-black = "*"
 bump2version = "*"
 coverage = "*"
 invoke = "*"
@@ -17,14 +16,11 @@ py-spy = "*"
 pylint = "*"
 pytest = "*"
 pytest-benchmark = "*"
-sphinx = "*"
+Sphinx = "*"
 vulture = "*"
 wheel = "*"
 yapf = "*"
-en-core-web-sm = {file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz"}
 pytest-profiling = "*"
-spikex = {path = "."}
-simplewiki-core = {path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200701.tar.gz"}
 
 [packages]
 jsonschema = "*"
@@ -35,10 +31,27 @@ spacy = ">=2.2.2,<3.0"
 ftfy = "*"
 smart-open = "*"
 cyac = "*"
-cython = "*"
 streamlit = "*"
 yarl = "*"
 python-igraph = "*"
 
 [pipenv]
 allow_prereleases = true
+
+[dev-packages.en-core-web-sm]
+file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz"
+
+[dev-packages.it-core-news-sm]
+file = "https://github.com/explosion/spacy-models/releases/download/it_core_news_sm-2.3.0/it_core_news_sm-2.3.0.tar.gz"
+
+[dev-packages.simplewiki-core]
+path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200701.tar.gz"
+
+[dev-packages.enwiki-core]
+path = "./graph_data/enwiki-core-package/enwiki_core-0.2.2-dev1/dist/enwiki_core-20200701.tar.gz"
+
+[dev-packages.itwiki-core]
+path = "./graph_data/itwiki-core-package/itwiki_core-0.2.2-dev1/dist/itwiki_core-20200720.tar.gz"
+
+[packages.d20dddb]
+path = "./."
