@@ -1,35 +1,32 @@
 from collections import Counter
 from difflib import get_close_matches
-from math import floor
 
 from spacy.tokens import Doc
 
-from ..wikigraph import WikiGraph
-from .catches import WikiCatchX
+from spikex.kex.idents import WikiIdentX
 
 MIN_SCORE_THRESHOLD = 0.10
 
 
-class WikiTopicX:
-    def __init__(
-        self,
-        catchx: WikiCatchX = None,
-        graph: WikiGraph = None,
-        graph_name: str = None,
-        refresh: bool = None,
-    ):
-        Doc.set_extension("topics", default={}, force=True)
-        self.catchx = catchx or WikiCatchX(graph=graph, graph_name=graph_name)
-        self.wg = self.catchx.wg
-        self.refresh = refresh
+class WikiTopicX(WikiIdentX):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        Doc.set_extension("topics", default=[], force=True)
 
     def __call__(self, doc: Doc):
-        if not doc._.catches or self.refresh:
-            self.catchx.min_score = MIN_SCORE_THRESHOLD
-            self.catchx(doc)
-        if not doc._.topics or self.refresh:
-            doc._.topics = self._new_get_topics(doc._.catches)
+        doc = super().__call__(doc)
+        if doc._.topics and not self.refresh:
+            return doc
+        doc._.topics = self._get_topics(doc._.idents)
         return doc
+
+    def _get_topics(self, idents):
+        topics = Counter()
+        for span, page, _ in idents:
+            if not any(t.pos_ in ("NOUN", "PROPN") for t in span):
+                continue
+            topics.update(self.wg.get_ancestors(page))
+        return topics.most_common()
 
     def _new_get_topics(self, catches):
         topics = {}
@@ -70,45 +67,45 @@ class WikiTopicX:
             good_topics[e] = score
         return good_topics
 
-    def _get_topics(self, catches):
-        freqs = {}
-        curr_score = 1.0
-        exhausted = False
-        topics = Counter()
-        score_th = MIN_SCORE_THRESHOLD
-        iter_catches = iter(
-            sorted(catches, key=lambda x: x.score, reverse=True)
-        )
-        while curr_score >= score_th and not exhausted:
-            layer_ents = []
-            catch_score = curr_score
-            while catch_score == curr_score:
-                catch = next(iter_catches, None)
-                if not catch:
-                    exhausted = True
-                    break
-                count = len(catch.spans)
-                catch_score = catch.score
-                for nb in self.wg.get_neighborcats(catch.pages, large=True):
-                    for e in nb:
-                        if e not in freqs:
-                            freqs[e] = 0
-                        freqs[e] += count
-                        layer_ents.append(e)
-            curr_score /= 2
-            topics.update([e for e in layer_ents if not topics or e in topics])
-            most_common = topics.most_common()
-            if not most_common:
-                continue
-            best = most_common[0]
-            best_count = best[1]
-            for e, c in most_common:
-                if c >= best_count * curr_score / 2:
-                    continue
-                del topics[e]
-        total_spans = sum(len(catch.spans) for catch in catches)
-        good_topics = {}
-        for e, c in topics.items():
-            count = floor(c / total_spans)
-            good_topics[e] = count
-        return good_topics
+    # def _get_topics(self, catches):
+    #     freqs = {}
+    #     curr_score = 1.0
+    #     exhausted = False
+    #     topics = Counter()
+    #     score_th = MIN_SCORE_THRESHOLD
+    #     iter_catches = iter(
+    #         sorted(catches, key=lambda x: x.score, reverse=True)
+    #     )
+    #     while curr_score >= score_th and not exhausted:
+    #         layer_ents = []
+    #         catch_score = curr_score
+    #         while catch_score == curr_score:
+    #             catch = next(iter_catches, None)
+    #             if not catch:
+    #                 exhausted = True
+    #                 break
+    #             count = len(catch.spans)
+    #             catch_score = catch.score
+    #             for nb in self.wg.get_neighborcats(catch.pages, large=True):
+    #                 for e in nb:
+    #                     if e not in freqs:
+    #                         freqs[e] = 0
+    #                     freqs[e] += count
+    #                     layer_ents.append(e)
+    #         curr_score /= 2
+    #         topics.update([e for e in layer_ents if not topics or e in topics])
+    #         most_common = topics.most_common()
+    #         if not most_common:
+    #             continue
+    #         best = most_common[0]
+    #         best_count = best[1]
+    #         for e, c in most_common:
+    #             if c >= best_count * curr_score / 2:
+    #                 continue
+    #             del topics[e]
+    #     total_spans = sum(len(catch.spans) for catch in catches)
+    #     good_topics = {}
+    #     for e, c in topics.items():
+    #         count = floor(c / total_spans)
+    #         good_topics[e] = count
+    #     return good_topics

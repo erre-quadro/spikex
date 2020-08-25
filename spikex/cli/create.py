@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from srsly import json_dumps, pickle_dumps
+from srsly import json_dumps
 from wasabi import msg
 
 from .. import __version__ as spikex_version
@@ -36,18 +36,17 @@ def create_wikigraph(
         "verbose": True,
     }
     wg = WikiGraph.build(only_core=only_core, **kwargs)
-    graph_name = f"{wiki}wiki_{t}"
+    graph_name = f"{wg.wiki}wiki_{t}"
     graph_path = output_path.joinpath(graph_name)
     if not graph_path.exists():
         graph_path.mkdir()
-    graph_format = "pklz"
-    graph_filename = f"{graph_name}.{graph_format}"
-    graph_filepath = graph_path.joinpath(graph_filename)
-    graph_filepath.write_bytes(pickle_dumps(wg))
+    fmt = "picklez"
+    with msg.loading("dumping..."):
+        wg.dump(graph_path, fmt=fmt)
     meta = get_meta()
+    meta["format"] = fmt
     meta["name"] = graph_name
-    meta["format"] = graph_format
-    meta["version"] = version
+    meta["version"] = wg.version
     meta["spikex_version"] = f">={spikex_version}"
     meta["fullname"] = f"{graph_name}-{spikex_version}"
     meta["sources"].append("Wikipedia")

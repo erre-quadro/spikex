@@ -6,6 +6,7 @@ import regex as re
 from wasabi import msg
 
 from spikex.util import pickle_dump, pickle_load
+
 from .fragment import Fragment
 
 

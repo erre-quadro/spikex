@@ -31,7 +31,7 @@ class WikiLinkageX:
         )
         for doc in iter_docs:
             doc_data = docs_data.setdefault(doc, {})
-            for topic_id, count in doc._.topics.items():
+            for topic_id, count in doc._.topics:
                 if topic_id not in doc_data:
                     doc_data[topic_id] = 0
                 doc_data[topic_id] += count

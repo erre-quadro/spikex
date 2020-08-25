@@ -86,7 +86,7 @@ def idx2i(source: Union[Doc, Span, List[Token]], idx: int):
 
 
 def pickle_dumps(data, protocol=None):
-    pickle_dumps(data, protocol=protocol)
+    return srsly.pickle_dumps(data, protocol=protocol)
 
 
 def pickle_dump(data, path, protocol=None, compress=None):

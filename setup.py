@@ -9,6 +9,12 @@ requirements = [
     "spacy>=2.2.2,<3.0",
     "wasabi",
     "typer",
+    "cyac",
+    "cython",
+    "python-igraph",
+    "ftfy",
+    "smart-open",
+    "yarl"
 ]
 
 setup_requirements = ["pytest-runner"]

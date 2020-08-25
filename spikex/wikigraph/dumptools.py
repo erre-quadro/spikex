@@ -1,5 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
+from os import cpu_count
 from pathlib import Path
 
 import regex as re
@@ -19,7 +20,7 @@ __all__ = [
 
 config = {
     "dumps_path": None,
-    "max_workers": 4,
+    "max_workers": cpu_count,
     "verbose": None,
     "version": "latest",
     "wiki": "en",
@@ -177,6 +178,7 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
                     bytes_read = compress_bytes
             compress_obj.close()
             should_reopen_compress_obj = True
+            wiki_sql_dump_url = dump_filepath
     if should_reopen_compress_obj:
         compress_obj, content_len = _get_wiki_dump_obj(wiki_sql_dump_url)
     with ProcessPoolExecutor(max_workers=max_workers) as executor:

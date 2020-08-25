@@ -21,6 +21,8 @@ vulture = "*"
 wheel = "*"
 yapf = "*"
 pytest-profiling = "*"
+profilehooks = "*"
+memory-profiler = "*"
 
 [packages]
 jsonschema = "*"
@@ -34,6 +36,7 @@ cyac = "*"
 streamlit = "*"
 yarl = "*"
 python-igraph = "*"
+Cython = "*"
 
 [pipenv]
 allow_prereleases = true
@@ -44,13 +47,13 @@ file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_
 [dev-packages.it-core-news-sm]
 file = "https://github.com/explosion/spacy-models/releases/download/it_core_news_sm-2.3.0/it_core_news_sm-2.3.0.tar.gz"
 
-[dev-packages.simplewiki-core]
-path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200701.tar.gz"
+[packages.80205cd]
+path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200801.tar.gz"
 
-[dev-packages.enwiki-core]
+[packages.7fdf1da]
 path = "./graph_data/enwiki-core-package/enwiki_core-0.2.2-dev1/dist/enwiki_core-20200701.tar.gz"
 
-[dev-packages.itwiki-core]
+[packages.ffbecc7]
 path = "./graph_data/itwiki-core-package/itwiki_core-0.2.2-dev1/dist/itwiki_core-20200720.tar.gz"
 
 [packages.d20dddb]

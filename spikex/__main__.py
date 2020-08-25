@@ -1,13 +1,17 @@
 if __name__ == "__main__":
-    import typer
     import sys
+
+    import typer
     from wasabi import msg
+
     from . import cli
 
     commands = {
         "create-wikigraph": cli.create_wikigraph,
         "package-wikigraph": cli.package_wikigraph,
-        "profile": cli.profile,
+        "profile-matcher": cli.profile_matcher,
+        "profile-wikigraph-load": cli.profile_wikigraph_load,
+        "profile-wikigraph-exec": cli.profile_wikigraph_exec,
     }
 
     if len(sys.argv) == 1:

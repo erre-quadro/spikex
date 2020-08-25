@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable, Union
 
-import regex as re
 from spacy.tokens import Doc, Span, Token
-from srsly import pickle_loads
 
 from ..matcher import Matcher
 from ..wikigraph import WikiGraph
@@ -12,7 +10,6 @@ from ..wikigraph import WikiGraph
 @dataclass
 class Catch:
     pages: list
-    score: float
     spans: list
 
 
@@ -21,59 +18,39 @@ class WikiCatchX:
         self,
         graph: WikiGraph = None,
         graph_name: str = None,
-        max_score: float = None,
-        min_score: float = None,
         refresh: bool = None,
         filter_span: Callable = None,
     ):
-        Doc.set_extension("catches", default=[], force=True)
-        self.wg = graph or WikiGraph(graph_name)
-        self.max_score = max_score or 1.0
-        self.min_score = min_score or 0.0
         self.refresh = refresh
+        self.wg = graph or WikiGraph.load(graph_name)
         self.filter_span = filter_span or (lambda x: True)
+        Doc.set_extension("catches", default=[], force=True)
 
     def __call__(self, doc: Doc):
         if doc._.catches and not self.refresh:
             return doc
+        catches = {}
         idx2i, text = _preprocess(doc, True)
         maxtlen = len(text)
-        catches = {}
-        for start_idx, end_idx, pages in self._wg.find_pages(text):
-            print(text[start_idx:end_idx])
+        for start_idx, end_idx, pages in self.wg.find_all_pages(text):
             start_i, end_i = _span_idx2i(start_idx, end_idx, idx2i, maxtlen)
             if start_i >= end_i:
                 continue
             span = doc[start_i:end_i]
-            key = self._trie_pages_map[id_]
+            print(span)
             if not self.filter_span(span):
                 continue
+            key = span.lower_
             data = catches.setdefault(key, {})
+            data.setdefault("pages", pages)
             spans = data.setdefault("spans", set())
             spans.add(span)
-            if "score" in data:
-                continue
-            nfactor = 0
-            pids = self._pages_map[key]
-            pages = data.setdefault("pages", {})
-            for vid in pids:
-                vx = self.wg.get_vertex(vid)
-                if vx.index in pages:
-                    continue
-                nfactor += 1
-                pages.setdefault(vx.index)
-            span_score = (1 / nfactor) if nfactor else 0
-            if span_score < self.min_score or span_score > self.max_score:
-                del catches[key]
-                continue
-            data.setdefault("score", span_score)
         idx2data = {}
         matcher = Matcher(doc.vocab)
         catches = list(catches.values())
         for i, catch in enumerate(catches):
             for span in catch["spans"]:
-                print("->", span)
-                matcher.add(i, [[{"TEXT": span.text}]])
+                matcher.add(i, [[{"LOWER": span.lower_}]])
         for i, start, end in matcher(doc):
             mlen = end - start
             for j in range(start, end):
@@ -83,6 +60,8 @@ class WikiCatchX:
                 if len(span) > mlen:
                     continue
                 catch = catches[catch_i]
+                if span not in catch["spans"]:
+                    continue
                 catch["spans"].remove(span)
             if i in idx2data:
                 continue
@@ -93,18 +72,10 @@ class WikiCatchX:
             catch = catches[i]
             catch["spans"].add(span)
         doc._.catches = [
-            Catch(
-                pages=list(catch["pages"]),
-                score=catch["score"],
-                spans=list(catch["spans"]),
-            )
+            Catch(pages=list(catch["pages"]), spans=list(catch["spans"]),)
             for catch in catches
         ]
         return doc
-
-
-def _normalize_title(title: str):
-    return _remove_title_detailing(title).lower()
 
 
 def _remove_title_detailing(title: str):
