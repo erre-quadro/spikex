@@ -1,4 +1,5 @@
 import importlib
+import json
 from itertools import combinations, product
 from pathlib import Path
 from typing import Iterable, Union
@@ -24,7 +25,7 @@ class WikiGraph:
         self.g = None
         self.wiki = None
         self.version = None
-        self.page_finder = FuzzyPageFinder()
+        self.f = FuzzyPageFinder()
 
     @staticmethod
     def build(**kwargs):
@@ -37,20 +38,34 @@ class WikiGraph:
         return wg
 
     @staticmethod
-    def load(graph_name: str):
+    def load(name: Union[Path, str]):
+        if isinstance(name, Path):
+            if not name.exists():
+                raise IOError
+            data_path = name
+            meta = json.load(name / "meta.json")
+        elif isinstance(name, str):
+            kls = importlib.import_module(name)
+            data_path = kls.data_path
+            meta = kls.meta
+        else:
+            raise IOError
         wg = WikiGraph()
-        kls = importlib.import_module(graph_name)
-        wg.g = Graph.Load(kls.graph_path.open("rb"))
-        wg.page_finder = pickle_load(kls.fpf_path)
+        f_path = data_path / "f"
+        g_path = data_path / "g"
+        if not g_path.exists() or not f_path.exists():
+            raise IOError
+        wg.f = pickle_load(f_path)
+        graph_format = meta["graph_format"]
+        wg.g = Graph.Load(g_path.open("rb"), format=graph_format)
         return wg
 
-    def dump(self, dir_path: Path, fmt: str = None):
-        fmt = fmt or "picklez"
-        self.g.write(dir_path / f"graph.{fmt}", fmt)
-        pickle_dump(self.page_finder, dir_path / f"fpf.{fmt}", compress=True)
+    def dump(self, dir_path: Path, graph_format: str = None):
+        pickle_dump(self.f, dir_path / "f", compress=True)
+        self.g.write(dir_path / "g", graph_format or "picklez")
 
     def build_page_finder(self):
-        self.page_finder.build(self.pages())
+        self.f.build(self.pages())
 
     def pages(self):
         yield from self.g.vs.select(kind_eq=KIND_PAGE)
@@ -107,7 +122,7 @@ class WikiGraph:
         ]
 
     def find_all_pages(self, text: str):
-        return self.page_finder.find_pages(text)
+        return self.f.find_pages(text)
 
 
 class FuzzyPageFinder:
@@ -126,43 +141,57 @@ class FuzzyPageFinder:
     def build(self, pages: Iterable[Vertex]):
         t2id = {}
         for page in pages:
+            id_ = None
             norm_title = _normalize_title(page["title"])
             if norm_title not in t2id:
                 id_ = self._t.insert(norm_title)
                 t2id[norm_title] = id_
                 self._t2p[id_] = []
-            id_ = t2id[norm_title]
+            if id_ is None:
+                id_ = t2id[norm_title]
+            if page.index in self._t2p[id_]:
+                continue
             self._t2p[id_].append(page.index)
 
     def find_pages(self, text: str):
-        ac_seps = set([ord(p) for p in _XP_SEPS.findall(text)])
-        for id_, start_idx, end_idx in self._t.match_longest(text, ac_seps):
-            yield (start_idx, end_idx, self._t2p[id_])
-            submatches = set()
-            tokens = _XP_SEPS.split(text[start_idx:end_idx])
-            # it must be a multiword
-            if len(tokens) < 3:
+        def iter_matches(source):
+            ac_seps = set([ord(p) for p in _XP_SEPS.findall(source)])
+            for id_, start_idx, end_idx in self._t.match_longest(
+                source, ac_seps
+            ):
+                yield (start_idx, end_idx, self._t2p[id_])
+
+        for match in iter_matches(text):
+            yield match
+            end_idx = match[1]
+            start_idx = match[0]
+            tot_match_tokens = len(_XP_SEPS.split(text[start_idx:end_idx]))
+            if tot_match_tokens < 2:
                 continue
-            for i in range(0, len(tokens)):
-                if i == 0:
-                    chunk = tokens[i]
-                else:
+            submatches = set()
+            tokens = _XP_SEPS.split(text[start_idx:])
+            chunk = tokens[0]
+            for i in range(0, tot_match_tokens):
+                if i > 0:
                     start_idx += len(tokens[i - 1])
                     chunk = "".join(tokens[i:])
-                for match in self.find_pages(chunk):
-                    s = start_idx + match[0]
+                for sidx, eidx, pages in iter_matches(chunk):
+                    s = start_idx + sidx
+                    if s >= end_idx:
+                        break
                     if s in submatches:
                         continue
                     submatches.add(s)
-                    yield (s, start_idx + match[1], match[2])
+                    yield (s, start_idx + eidx, pages)
 
 
 def _make_graph(**kwargs):
-    p2id = {}
     c2idx = {}
     g = Graph(directed=True)
     pprops = _get_pprops(**kwargs)
     only_core = "only_core" in kwargs and kwargs["only_core"]
+    # fix title escaping
+    unescape = lambda x: x.replace("\\'", "'").replace('\\"', '"')
     iter_page_data = dt.iter_page_dump_data(**kwargs)
     for ns_kind, pageid, title in iter_page_data:
         disambi = None
@@ -177,6 +206,7 @@ def _make_graph(**kwargs):
                 disambi = "1"
             if "wikibase_item" in page_props:
                 wikidata = page_props["wikibase_item"]
+        title = unescape(title)
         vx = g.add_vertex(
             pageid,
             title=title,
@@ -185,34 +215,34 @@ def _make_graph(**kwargs):
             disambi=disambi or "",
             wikidata=wikidata or "",
         )
-        if ns_kind == KIND_PAGE:
-            p2id[title] = pageid
-        elif ns_kind == KIND_CATEGORY:
-            c2idx[title] = vx.index
+        if ns_kind == KIND_CATEGORY:
+            c2idx.setdefault(title, vx.index)
     edges = []
-    iter_redirect_data = dt.iter_redirect_dump_data(**kwargs)
-    for sourceid, target_title in iter_redirect_data:
-        try:
-            source_vx = g.vs.find(sourceid)
-            target_id = p2id[target_title]
-        except (KeyError, ValueError):
-            continue
-        source_vx["redirect"] = target_id
-    core_cat_idxs = set()
+    p2id = {}
+    core_c_idxs = set()
     iter_cl_data = dt.iter_categorylinks_dump_data(**kwargs)
     for cl_type, sourceid, target_title in iter_cl_data:
         try:
             source_vx = g.vs.find(sourceid)
-            target_idx = c2idx[target_title]
+            target_idx = c2idx[unescape(target_title)]
         except (KeyError, ValueError):
             continue
         if cl_type == dt.WIKI_CL_TYPE_PAGE:
-            core_cat_idxs.add(target_idx)
+            core_c_idxs.add(target_idx)
+            p2id.setdefault(source_vx["title"], source_vx["name"])
         edges.append((source_vx.index, target_idx))
     g.add_edges(edges)
     if only_core:
         idxs = set(c2idx.values())
-        g.delete_vertices(idxs.difference(core_cat_idxs))
+        g.delete_vertices(idxs.difference(core_c_idxs))
+    iter_redirect_data = dt.iter_redirect_dump_data(**kwargs)
+    for sourceid, target_title in iter_redirect_data:
+        try:
+            source_vx = g.vs.find(sourceid)
+            target_id = p2id[unescape(target_title)]
+        except (KeyError, ValueError):
+            continue
+        source_vx["redirect"] = target_id
     return g
 
 
@@ -226,12 +256,12 @@ def _get_pprops(**kwargs):
 
 
 def _normalize_title(title: str):
-    open_at = title.find("(")
+    open_at = title.find("_(")
     if open_at < 0:
         return title.lower()
     close_at = title.find(")", open_at)
     if close_at < 0:
         return title.lower()
-    a = title[: open_at - 1]
+    a = title[:open_at]
     b = title[close_at + 1 :]
     return "".join((a, b)).lower()

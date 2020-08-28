@@ -15,18 +15,13 @@ class WikiTopicX(WikiIdentX):
 
     def __call__(self, doc: Doc):
         doc = super().__call__(doc)
-        if doc._.topics and not self.refresh:
-            return doc
-        doc._.topics = self._get_topics(doc._.idents)
-        return doc
-
-    def _get_topics(self, idents):
         topics = Counter()
-        for span, page, _ in idents:
-            if not any(t.pos_ in ("NOUN", "PROPN") for t in span):
+        for ident in doc._.idents:
+            if not any(t.pos_ in ("NOUN", "PROPN") for t in ident.span):
                 continue
-            topics.update(self.wg.get_ancestors(page))
-        return topics.most_common()
+            topics.update(self.wg.get_ancestors(ident.page))
+        doc._.topics = topics.most_common()
+        return doc
 
     def _new_get_topics(self, catches):
         topics = {}

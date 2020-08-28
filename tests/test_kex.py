@@ -17,10 +17,10 @@ def test_catches(wikigraph, doc):
 def test_topics(wikigraph, doc):
     topicx = WikiTopicX(graph=wikigraph)
     doc = topicx(doc)
-    assert len(doc._.topics) == 9
     titles = set([topicx.wg.get_vertex(p)["title"] for p, _ in doc._.topics])
     assert titles == set(
         [
+            "Amygdaloideae",
             "Apples",
             "Basic_English_850_words",
             "Basic_English",
@@ -34,9 +34,12 @@ def test_topics(wikigraph, doc):
     )
 
 
-def test_idents(wikigraph, doc):
+def test_idents(wikigraph, nlp):
+    doc = nlp(open("resources/sample4.txt").read())
     doc = WikiIdentX(graph=wikigraph)(doc)
-    chunks = [ident[0].lower_ for ident in doc._.idents]
+    chunks = [ident.span.lower_ for ident in doc._.idents]
+    for ident in doc._.idents:
+        print(wikigraph.get_vertex(ident.page)["title"], "->", ident.score)
     assert chunks == ["an", "apple", "a", "day", "the"]
 
 

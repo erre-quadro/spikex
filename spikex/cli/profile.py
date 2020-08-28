@@ -1,16 +1,13 @@
-from functools import partial
+import pstats
+from cProfile import Profile
 from pathlib import Path
-from sys import stdout
 
-import spacy
 import memory_profiler as mp
+import spacy
 from srsly import read_jsonl
 
 from ..matcher import Matcher
 from ..wikigraph import WikiGraph
-
-from cProfile import Profile
-import pstats
 
 
 def profile_matcher(patterns_path: str, memory: bool = None):
@@ -25,7 +22,7 @@ def profile_matcher(patterns_path: str, memory: bool = None):
         ]
         matcher.add("Profile", patterns)
         matcher(doc)
-    
+
     _profile(func, memory)
 
 
@@ -50,7 +47,7 @@ def profile_wikigraph_exec(graph_name: str, memory: bool = None):
     def func():
         for _ in wg.find_all_pages(text):
             pass
-    
+
     _profile(func, memory)
 
 
@@ -74,6 +71,6 @@ def _mem_profile(fn):
 def _time_profile(fn):
     profiler = Profile()
     profiler.runcall(fn)
-    stats = pstats.Stats(profiler)        
+    stats = pstats.Stats(profiler)
     stats.sort_stats("time")
     stats.print_stats(40)

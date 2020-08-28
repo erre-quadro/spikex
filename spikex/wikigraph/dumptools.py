@@ -95,6 +95,8 @@ def _parse_fx_redirect_dump(el):
         return
     redirectid = el[0]
     title = fix_text(el[2])
+    if el[4]:
+        title += f"#{el[4]}"
     return redirectid, title
 
 

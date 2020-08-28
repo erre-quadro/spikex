@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "7357b0f07dd99f20895554d8da456e9e3ba5a0dabea103eb84276eb38a1b0393"
+            "sha256": "e8a0d9cc14311cdeb857614664b76d3016b7bd27bd6594ad61ca7edbdac3f654"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -14,11 +14,11 @@
         ]
     },
     "default": {
+        "4e19f51": {
+            "path": "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200820.tar.gz"
+        },
         "7fdf1da": {
             "path": "./graph_data/enwiki-core-package/enwiki_core-0.2.2-dev1/dist/enwiki_core-20200701.tar.gz"
-        },
-        "80205cd": {
-            "path": "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200801.tar.gz"
         },
         "altair": {
             "hashes": [
@@ -302,6 +302,9 @@
             ],
             "version": "==0.0.3"
         },
+        "enwiki-core": {
+            "path": "./graph_data/enwiki-core-package/enwiki_core-0.2.2-dev1/dist/enwiki_core-20200701.tar.gz"
+        },
         "ffbecc7": {
             "path": "./graph_data/itwiki-core-package/itwiki_core-0.2.2-dev1/dist/itwiki_core-20200720.tar.gz"
         },
@@ -332,6 +335,7 @@
                 "sha256:9b2652af1607986a1b231c62302d070bc0534f564c393a5d9d130db9abbbe89d",
                 "sha256:d6fbba26dba3cebd411382bc484f7bc2caa98427ae0ddb4ab37fe8bfeb5c7dd3"
             ],
+            "markers": "python_version >= '3.4'",
             "version": "==5.3.4"
         },
         "ipython": {
@@ -339,7 +343,6 @@
                 "sha256:5a8f159ca8b22b9a0a1f2a28befe5ad2b703339afb58c2ffe0d7c8d7a3af5999",
                 "sha256:b70974aaa2674b05eb86a910c02ed09956a33f2dd6c71afc60f0b128a77e7f28"
             ],
-            "markers": "python_version >= '3.3'",
             "version": "==7.17.0"
         },
         "ipython-genutils": {
@@ -894,6 +897,9 @@
             ],
             "version": "==1.5.0"
         },
+        "simplewiki-core": {
+            "path": "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200820.tar.gz"
+        },
         "six": {
             "hashes": [
                 "sha256:30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259",
@@ -923,6 +929,9 @@
             ],
             "index": "pypi",
             "version": "==2.3.2"
+        },
+        "spikex": {
+            "path": "./."
         },
         "srsly": {
             "hashes": [
@@ -1056,7 +1065,6 @@
                 "sha256:91056c15fa70756691db97756772bb1eb9678fa585d9184f24534b100dc60f4a",
                 "sha256:e7983572181f5e1522d9c98453462384ee92a0be7fac5f1413a1e35c56cc0461"
             ],
-            "markers": "python_version != '3.4'",
             "version": "==1.25.10"
         },
         "validators": {
@@ -1644,7 +1652,6 @@
                 "sha256:91056c15fa70756691db97756772bb1eb9678fa585d9184f24534b100dc60f4a",
                 "sha256:e7983572181f5e1522d9c98453462384ee92a0be7fac5f1413a1e35c56cc0461"
             ],
-            "markers": "python_version != '3.4'",
             "version": "==1.25.10"
         },
         "vulture": {

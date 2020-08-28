@@ -1,8 +1,8 @@
 {
     "name":"",
-    "format":"",
     "fullname":"",
     "license":"MIT",
+    "graph_format":"",
     "author":"Erre Quadro srl",
     "url":"https://errequadrosrl.com",
     "email":"paolo.arduin@errequadrosrl.com",

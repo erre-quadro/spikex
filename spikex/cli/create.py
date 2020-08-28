@@ -40,13 +40,13 @@ def create_wikigraph(
     graph_path = output_path.joinpath(graph_name)
     if not graph_path.exists():
         graph_path.mkdir()
-    fmt = "picklez"
+    graph_format = "picklez"
     with msg.loading("dumping..."):
-        wg.dump(graph_path, fmt=fmt)
+        wg.dump(graph_path, graph_format=graph_format)
     meta = get_meta()
-    meta["format"] = fmt
     meta["name"] = graph_name
     meta["version"] = wg.version
+    meta["graph_format"] = graph_format
     meta["spikex_version"] = f">={spikex_version}"
     meta["fullname"] = f"{graph_name}-{spikex_version}"
     meta["sources"].append("Wikipedia")

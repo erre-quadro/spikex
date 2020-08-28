@@ -60,12 +60,10 @@ def format(c, check=False):
     # Run isort
     isort_options = [
         "--check-only" if check else "",
-        "--apply",
         "--combine-as",
         "--force-grid-wrap=0",
         "--line-width 79", # PEP 8 says 79.
         "--multi-line=3",
-        "--recursive",
         "--trailing-comma",
     ]
     c.run("isort {} {}".format(" ".join(isort_options), python_dirs_string))
@@ -105,6 +103,7 @@ def lint(c):
     """
     Run all linting
     """
+    pass
 
 
 @task

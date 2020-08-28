@@ -20,7 +20,7 @@ def pytest_runtest_setup(item):
 
 @pytest.fixture(scope="session")
 def wikigraph():
-    return WikiGraph.load("simplewiki_core")
+    return WikiGraph.load("enwiki_core")
 
 
 @pytest.fixture(scope="session")

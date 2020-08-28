@@ -1,54 +1,55 @@
+from dataclasses import dataclass
 from difflib import get_close_matches
 from typing import Counter
 
-from spacy.tokens import Doc
+from spacy.tokens import Doc, Span
 
 from .catches import WikiCatchX
 
 
+@dataclass
+class Ident:
+    page: int
+    score: float
+    span: Span
+
+
 class WikiIdentX(WikiCatchX):
     def __init__(self, **kwargs):
+        if "filter_span" not in kwargs:
+            kwargs["filter_span"] = lambda x: (
+                any(
+                    t.pos_ in ("NOUN", "PROPN") or t.tag_ in ("VBG",)
+                    for t in x
+                )
+            )
         super().__init__(**kwargs)
         Doc.set_extension("idents", default=[], force=True)
 
     def __call__(self, doc: Doc):
         doc = super().__call__(doc)
-        if doc._.idents and not self.refresh:
-            return doc
-        doc._.idents = self._get_idents(doc._.catches)
+        p2c = self._page2catch_r1(doc._.catches)
+        p2c = self._page2catch_r2(doc._.catches, p2c)
+        doc._.idents = self._get_best_idents(p2c)
         return doc
-
-    def _get_idents(self, catches):
-        p2c = self._page2catch_r1(catches)
-        p2c = self._page2catch_r2(catches, p2c)
-        idents = [
-            (span, page, score)
-            for page, (catch, score) in p2c.items()
-            for span in catch.spans
-        ]
-        return sorted(idents, key=lambda x: x[0].start)
 
     def _page2catch_r1(self, catches):
         page2catch = {}
         for catch in catches:
             t2p = {}
-            disambi = False
             for page in catch.pages:
                 hv = self.wg.get_head_vertex(page)
                 if hv["disambi"]:
-                    disambi = True
-                    break
+                    continue
                 v = self.wg.get_vertex(page)
                 title = v["title"]
                 if "_(" in title:
                     continue
                 t2p[title] = page
-            if disambi:
-                continue
             ranker = Counter()
             titles = t2p.keys()
             for span in catch.spans:
-                match = get_close_matches(span.text, titles, n=1, cutoff=0.2)
+                match = get_close_matches(span.text, titles, n=1, cutoff=0.3)
                 if not match:
                     continue
                 ranker.update([match[0]])
@@ -62,8 +63,8 @@ class WikiIdentX(WikiCatchX):
         def page_score(counts, common):
             return sum(counts[c] for c in common) / len(counts)
 
-        ances_count = {}
         page2ances = {}
+        ances_count = {}
         for page, (catch, _) in page2catch.items():
             ances = self.wg.get_ancestors(page)
             if not ances:
@@ -91,14 +92,12 @@ class WikiIdentX(WikiCatchX):
                 if page in new_pages:
                     best_page = page
                     best_score = new_pages[page][1]
+                    rank.append((best_page, best_score))
                     continue
                 common = ances.intersection(set(self.wg.get_ancestors(page)))
                 if len(common) == 0:
                     continue
                 score = page_score(ances_count, common)
-                print(self.wg.get_vertex(page), "->", score)
-                if score < 0.05:
-                    continue
                 rank.append((page, score))
             if not rank:
                 continue
@@ -106,7 +105,43 @@ class WikiIdentX(WikiCatchX):
             page, score = rank[0]
             if page == best_page or score <= best_score:
                 continue
-            if best_page is not None:
-                del new_pages[best_page]
             new_pages[page] = (catch, score)
         return new_pages
+
+    def _get_best_idents(self, page2catch):
+        idents = sorted(
+            [
+                Ident(page=page, score=score, span=span)
+                for page, (catch, score) in page2catch.items()
+                for span in catch.spans
+                if score >= 0.011
+            ],
+            key=lambda x: (x.span.start, -x.span.end),
+        )
+        last = None
+        good_idents = []
+        for i, ident in enumerate(idents):
+            if not last or ident.span.start >= last.span.end:
+                good_idents.append(ident)
+                last = ident
+            else:
+                ident_nounness = _get_nounness(ident.span)
+                last_nounness = _get_nounness(last.span)
+                if (
+                    ident_nounness > last_nounness
+                    or ident_nounness == last_nounness
+                    and ident.score > last.score
+                ):
+                    good_idents.remove(last)
+                    for idx in range(idents.index(last) + 1, i):
+                        good_idents.append(idents[idx])
+                    good_idents.append(ident)
+                    last = ident
+        return good_idents
+
+
+def _get_nounness(span: Span):
+    return sum(
+        token.pos_ in ("ADJ", "NOUN", "PROPN") or token.tag_ in ("VBG",)
+        for token in span
+    )

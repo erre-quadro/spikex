@@ -30,22 +30,14 @@ def load_it_nlp():
     hash_funcs={WikiGraph: id}, allow_output_mutation=True, show_spinner=False
 )
 def load_en_identx():
-    filter_span = lambda x: (
-        any(t.pos_ in ("NOUN", "PROPN") for t in x)
-        and all(t.pos_ in ("ADJ", "ADV", "NOUN", "PROPN", "VERB") for t in x)
-    )
-    return WikiIdentX(graph_name="enwiki_core", filter_span=filter_span)
+    return WikiIdentX(name="enwiki_core")
 
 
 @st.cache(
     hash_funcs={WikiGraph: id}, allow_output_mutation=True, show_spinner=False
 )
 def load_it_identx():
-    filter_span = lambda x: (
-        any(t.pos_ in ("NOUN", "PROPN") for t in x)
-        and all(t.pos_ in ("ADJ", "ADV", "NOUN", "PROPN", "VERB") for t in x)
-    )
-    return WikiIdentX(graph_name="itwiki_core", filter_span=filter_span)
+    return WikiIdentX(name="itwiki_core")
 
 
 @st.cache(allow_output_mutation=True, show_spinner=False)
@@ -67,17 +59,19 @@ def load_identx(lang):
         return load_it_identx()
 
 
-def get_html_wiki_hyperlink(title):
+def get_html_wiki_hyperlink(lang, title):
     page = title.replace(" ", "_")
-    return HTML_WIKI_HREF_WRAPPER.format(lang="it", page=page, title=title)
+    return HTML_WIKI_HREF_WRAPPER.format(lang=lang, page=page, title=title)
 
 
-def get_renderable_idents(wg, idents):
+def get_renderable_idents(lang, wg, idents):
     return [
         {
-            "label": get_html_wiki_hyperlink(wg.get_vertex(ident[1])["title"]),
-            "start": ident[0].start_char,
-            "end": ident[0].end_char,
+            "label": get_html_wiki_hyperlink(
+                lang, wg.get_vertex(ident.page)["title"]
+            ),
+            "start": ident.span.start_char,
+            "end": ident.span.end_char,
         }
         for ident in idents
     ]
@@ -89,7 +83,7 @@ def main():
     lang = LANG_TABLE[lang_key]
     nlp = load_nlp(lang)
     identx = load_identx(lang)
-    input_text = st.text_area("Insert text")
+    input_text = st.text_area("Insert text (delete if uploading a file)")
     st.markdown("#### or")
     uploaded_file = st.file_uploader("Upload a file")
     if input_text:
@@ -101,7 +95,7 @@ def main():
     doc = identx(nlp(text))
     renderer = load_renderer()
     html = renderer.render_ents(
-        text, get_renderable_idents(identx.wg, doc._.idents), ""
+        text, get_renderable_idents(lang, identx.wg, doc._.idents), ""
     )
     st.write(
         HTML_WRAPPER.format(html.replace("\n", "")), unsafe_allow_html=True
