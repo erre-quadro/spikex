@@ -17,19 +17,20 @@ class Catch:
 class WikiCatchX:
     def __init__(
         self,
-        graph: WikiGraph = None,
-        name: Union[Path, str] = None,
+        graph: Union[WikiGraph, Path, str],
         filter_span: Callable = None,
+        ignore_case: bool = None
     ):
-        self.wg = graph or WikiGraph.load(name)
+        self.wg = graph if isinstance(graph, WikiGraph) else WikiGraph.load(graph)
         self.filter_span = filter_span or (lambda x: True)
+        self.ignore_case = ignore_case
         Doc.set_extension("catches", default=[], force=True)
 
     def __call__(self, doc: Doc):
         catch_data = {}
         idx2i, text = _preprocess(doc)
         maxtlen = len(text)
-        for start_idx, end_idx, pages in self.wg.find_all_pages(text):
+        for start_idx, end_idx, pages in self.wg.find_all_pages(text, self.ignore_case):
             start_i, end_i = _span_idx2i(start_idx, end_idx, idx2i, maxtlen)
             if start_i >= end_i:
                 continue
@@ -42,7 +43,7 @@ class WikiCatchX:
             spans = data.setdefault("spans", set())
             spans.add(span)
         catches = list(catch_data.values())
-        self._fix_catches(catches, doc)
+        # self._fix_catches(catches, doc)
         doc._.catches = [
             Catch(pages=tuple(catch["pages"]), spans=tuple(catch["spans"]))
             for catch in catches
@@ -51,40 +52,51 @@ class WikiCatchX:
 
     def _fix_catches(self, catches, doc):
         idx2data = {}
-        matcher = Matcher(doc.vocab)
+        # matcher = Matcher(doc.vocab)
+        # for i, catch in enumerate(catches):
+        #     for span in catch["spans"]:
+        #         pattern = [
+        #             {"LEMMA": token.lemma_}
+        #             if token.pos_ in ("NOUN",)
+        #             else {"TEXT": token.text}
+        #             for token in span
+        #         ]
+        #         matcher.add(i, [pattern])
+        empty_catches = []
         for i, catch in enumerate(catches):
-            for span in catch["spans"]:
-                pattern = [
-                    {
-                        "LEMMA"
-                        if token.pos_ in ("NOUN",)
-                        else "LOWER": token.lower_
-                    }
-                    for token in span
-                ]
-                matcher.add(i, [pattern])
-        for i, start, end in matcher(doc):
-            mlen = end - start
-            for j in range(start, end):
-                if j not in idx2data:
+            for j, span in enumerate(catch["spans"]):
+        # for i, start, end in matcher(doc):
+            # span = doc[start:end]
+                if not self.filter_span(span):
                     continue
-                catch_i, span = idx2data[j]
-                if len(span) > mlen:
-                    continue
-                catch = catches[catch_i]
-                if span not in catch["spans"]:
-                    continue
-                catch["spans"].remove(span)
-            if i in idx2data:
-                continue
-            span = doc[start:end]
-            if not self.filter_span(span):
-                continue
-            data = (i, span)
-            for idx in range(start, end):
-                idx2data[idx] = data
-            catch = catches[i]
-            catch["spans"].add(span)
+                # mlen = end - start
+                mlen = len(span)
+                should_stop = False
+                for k in range(span.start, span.end): # start, end):
+                    if k not in idx2data:
+                        continue
+                    catch_i, old_span = idx2data[k]
+                    if len(old_span) > mlen:
+                        should_stop = True
+                        break
+                    catch = catches[catch_i]
+                    if old_span not in catch["spans"]:
+                        continue
+                    del idx2data[k]
+                    catch["spans"].remove(old_span)
+                    if not catch["spans"]:
+                        empty_catches.append(catch)
+                if should_stop:
+                    break
+                data = (i + j, span)
+                for idx in range(span.start, span.end):
+                    idx2data[idx] = data
+                catch = catches[data[0]]
+                catch["spans"].add(span)
+                if catch in empty_catches:
+                    empty_catches.remove(catch)
+        for catch in empty_catches:
+            catches.remove(catch)
         return catches
 
 
@@ -94,7 +106,7 @@ def _preprocess(source: Union[Doc, Span]):
     curr_idx = 0
     for i, token in enumerate(source):
         idx2i[curr_idx] = i
-        value = token.lower_
+        value = token.lemma_ if token.pos_ == "NOUN" else token.text
         value += token.whitespace_
         text_tokens.append(value)
         curr_idx += len(value)

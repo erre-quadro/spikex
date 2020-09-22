@@ -15,7 +15,7 @@ class Ident:
 
 
 class WikiIdentX(WikiCatchX):
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
         if "filter_span" not in kwargs:
             kwargs["filter_span"] = lambda x: (
                 any(
@@ -23,7 +23,7 @@ class WikiIdentX(WikiCatchX):
                     for t in x
                 )
             )
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         Doc.set_extension("idents", default=[], force=True)
 
     def __call__(self, doc: Doc):
@@ -31,6 +31,8 @@ class WikiIdentX(WikiCatchX):
         p2c = self._page2catch_r1(doc._.catches)
         p2c = self._page2catch_r2(doc._.catches, p2c)
         doc._.idents = self._get_best_idents(p2c)
+        for ident in doc._.idents:
+            print(self.wg.get_vertex(ident.page)["title"], "->", ident.score)
         return doc
 
     def _page2catch_r1(self, catches):
@@ -38,6 +40,7 @@ class WikiIdentX(WikiCatchX):
         for catch in catches:
             t2p = {}
             for page in catch.pages:
+                print(self.wg.get_vertex(page)["title"])
                 hv = self.wg.get_head_vertex(page)
                 if hv["disambi"]:
                     continue
@@ -66,7 +69,7 @@ class WikiIdentX(WikiCatchX):
         page2ances = {}
         ances_count = {}
         for page, (catch, _) in page2catch.items():
-            ances = self.wg.get_ancestors(page)
+            ances = self.wg.get_ancestor_vertices(page)
             if not ances:
                 continue
             page2ances[page] = ances
@@ -84,17 +87,24 @@ class WikiIdentX(WikiCatchX):
         for catch in catches:
             rank = []
             best_score = 0
-            best_page = None
+            # pages = set()
+            # for page in catch.pages:
+            #     hv = self.wg.get_head_vertex(page)
+            #     if not hv["disambi"]:
+            #         pages.add(page)
+            #         continue
+            #     pages.update(
+            #         [v.index for v in self.wg.get_disambi_vertices(hv)]
+            #     )
             for page in catch.pages:
                 hv = self.wg.get_head_vertex(page)
                 if hv["disambi"]:
                     continue
                 if page in new_pages:
-                    best_page = page
                     best_score = new_pages[page][1]
-                    rank.append((best_page, best_score))
                     continue
-                common = ances.intersection(set(self.wg.get_ancestors(page)))
+                page_ances = set(self.wg.get_ancestor_vertices(page))
+                common = set.intersection(ances, page_ances)
                 if len(common) == 0:
                     continue
                 score = page_score(ances_count, common)
@@ -103,7 +113,7 @@ class WikiIdentX(WikiCatchX):
                 continue
             rank.sort(key=lambda x: (x[1], -x[0]), reverse=True)
             page, score = rank[0]
-            if page == best_page or score <= best_score:
+            if score < best_score:
                 continue
             new_pages[page] = (catch, score)
         return new_pages
@@ -114,7 +124,7 @@ class WikiIdentX(WikiCatchX):
                 Ident(page=page, score=score, span=span)
                 for page, (catch, score) in page2catch.items()
                 for span in catch.spans
-                if score >= 0.011
+                if score >= 0.02
             ],
             key=lambda x: (x.span.start, -x.span.end),
         )

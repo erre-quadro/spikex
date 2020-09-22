@@ -19,7 +19,7 @@ class WikiTopicX(WikiIdentX):
         for ident in doc._.idents:
             if not any(t.pos_ in ("NOUN", "PROPN") for t in ident.span):
                 continue
-            topics.update(self.wg.get_ancestors(ident.page))
+            topics.update(self.wg.get_ancestor_vertices(ident.page))
         doc._.topics = topics.most_common()
         return doc
 

@@ -30,14 +30,14 @@ def load_it_nlp():
     hash_funcs={WikiGraph: id}, allow_output_mutation=True, show_spinner=False
 )
 def load_en_identx():
-    return WikiIdentX(name="enwiki_core")
+    return WikiIdentX("enwiki_core")
 
 
 @st.cache(
     hash_funcs={WikiGraph: id}, allow_output_mutation=True, show_spinner=False
 )
 def load_it_identx():
-    return WikiIdentX(name="itwiki_core")
+    return WikiIdentX("itwiki_core")
 
 
 @st.cache(allow_output_mutation=True, show_spinner=False)

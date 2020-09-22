@@ -1,5 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
+from multiprocessing import get_context
 from os import cpu_count
 from pathlib import Path
 
@@ -15,27 +16,29 @@ from yarl import URL
 __all__ = [
     "iter_page_dump_data",
     "iter_redirect_dump_data",
+    "iter_pagelinks_dump_data",
     "iter_categorylinks_dump_data",
 ]
 
 config = {
     "dumps_path": None,
-    "max_workers": cpu_count,
+    "max_workers": cpu_count(),
     "verbose": None,
     "version": "latest",
     "wiki": "en",
 }
 
-WIKI_NS_KIND_CATEGORY = "14"
 WIKI_NS_KIND_PAGE = "0"
+WIKI_NS_KIND_CATEGORY = "14"
 
-WIKI_CL_TYPE_CATEGORY = "subcat"
 WIKI_CL_TYPE_PAGE = "page"
+WIKI_CL_TYPE_CATEGORY = "subcat"
 
-_WIKI_DP_CATEGORYLINKS = "categorylinks"
 _WIKI_DP_PAGE = "page"
-_WIKI_DP_PAGE_PROPS = "page_props"
 _WIKI_DP_REDIRECT = "redirect"
+_WIKI_DP_PAGELINKS = "pagelinks"
+_WIKI_DP_PAGE_PROPS = "page_props"
+_WIKI_DP_CATEGORYLINKS = "categorylinks"
 
 _WIKI_DL_NAME = "{w}wiki-{v}-{t}.sql.gz"
 _WIKI_BASE_DL_PATH = "https://dumps.wikimedia.org/{w}wiki/"
@@ -79,7 +82,7 @@ def _parse_fx_page_dump(el):
         return
     ns_kind = el[1]
     pageid = el[0]
-    title = fix_text(el[2])
+    title = _unescape_title(fix_text(el[2]))
     return ns_kind, pageid, title
 
 
@@ -94,10 +97,21 @@ def _parse_fx_redirect_dump(el):
     if el[1] not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
         return
     redirectid = el[0]
-    title = fix_text(el[2])
-    if el[4]:
-        title += f"#{el[4]}"
+    title = _unescape_title(fix_text(el[2]))
     return redirectid, title
+
+
+def iter_pagelinks_dump_data(**kwargs):
+    dump_url = _get_wiki_dump_dl_url(_WIKI_DP_PAGELINKS, **kwargs)
+    return _parse_wiki_sql_dump(dump_url, _parse_fx_pagelinks_dump, **kwargs)
+
+
+def _parse_fx_pagelinks_dump(el):
+    if el[1] != WIKI_NS_KIND_PAGE or el[3] != WIKI_NS_KIND_PAGE:
+        return
+    sourceid = el[0]
+    target = _unescape_title(fix_text(el[2]))
+    return sourceid, target
 
 
 def iter_categorylinks_dump_data(**kwargs):
@@ -112,8 +126,12 @@ def _parse_fx_categorylinks_dump(el):
         return
     cl_type = el[6]
     sourceid = el[0]
-    target = fix_text(el[1])
+    target = _unescape_title(fix_text(el[1]))
     return cl_type, sourceid, target
+
+
+def _unescape_title(title):
+    return title.replace("\\'", "'").replace('\\"', '"')
 
 
 def _get_wiki_dump_dl_url(t, **kwargs):
@@ -151,7 +169,6 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
     dumps_path = _kwargs["dumps_path"]
     max_workers = _kwargs["max_workers"]
     verbose = _kwargs["verbose"]
-    fs = []
     compress_bytes_read = 0
     dump_name = wiki_sql_dump_url.name
     msg.text(f"-> {dump_name}", show=verbose)
@@ -170,7 +187,7 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
         dump_filepath = dumps_path.joinpath(dump_name)
         if not dump_filepath.exists() or dump_filepath.stat().st_size == 0:
             with tqdm(
-                desc="download and persist", total=content_len, **tqdm_kwargs,
+                desc="download to disk", total=content_len, **tqdm_kwargs,
             ) as pbar, dump_filepath.open("wb") as fd:
                 bytes_read = 0
                 for chunk in compress_obj:
@@ -183,7 +200,10 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
             wiki_sql_dump_url = dump_filepath
     if should_reopen_compress_obj:
         compress_obj, content_len = _get_wiki_dump_obj(wiki_sql_dump_url)
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(
+        max_workers=max_workers, mp_context=get_context("spawn")
+    ) as executor:
+        fs = []
         with tqdm(
             desc="parse", total=content_len, **tqdm_kwargs,
         ) as pbar, compression_wrapper(compress_obj, "rb") as decompress_obj:
@@ -191,17 +211,30 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
             for line in decompress_obj:
                 task = partial(_parsing_task, parse_fx=parse_fx)
                 fs.append(executor.submit(task, line.decode("latin-1")))
+                i = 0
+                while i < len(fs):
+                    f = fs[i]
+                    if not f.done():
+                        break
+                    i += 1
+                    fs.remove(f)
+                    yield from _iter_job_results(f)
                 compress_bytes = compress_obj.tell()
                 pbar.update(compress_bytes - compress_bytes_read)
                 compress_bytes_read = compress_bytes
         with tqdm(desc="wrap up", total=len(fs), disable=tqdm_disable) as pbar:
             for f in as_completed(fs):
-                for res in f.result():
-                    if not res:
-                        continue
-                    yield res
-                pbar.update(1)
+                fs.remove(f)
+                yield from _iter_job_results(f)
+                pbar.update()
     msg.good(dump_name, show=verbose)
+
+
+def _iter_job_results(job):
+    for res in job.result():
+        if not res:
+            continue
+        yield res
 
 
 def _parsing_task(line, parse_fx):

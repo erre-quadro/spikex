@@ -47,12 +47,6 @@ file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_
 [dev-packages.it-core-news-sm]
 file = "https://github.com/explosion/spacy-models/releases/download/it_core_news_sm-2.3.0/it_core_news_sm-2.3.0.tar.gz"
 
-[packages.enwiki-core]
-path = "./graph_data/enwiki-core-package/enwiki_core-0.2.2-dev1/dist/enwiki_core-20200701.tar.gz"
-
-[packages.spikex]
-path = "./."
-
 [packages.simplewiki-core]
 path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200820.tar.gz"
 

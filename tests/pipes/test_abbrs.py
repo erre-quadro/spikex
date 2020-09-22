@@ -93,16 +93,16 @@ def test_abbreviations_bad_short_form(nlp, short):
 )
 def test_detection_single(abbrx, nlp, text, short, long):
     doc = abbrx(nlp(text))
-    assert len(doc._.abbreviations) == 1
-    assert doc._.abbreviations[0].text == short
-    assert doc._.abbreviations[0]._.long_form.text == long
+    assert len(doc._.abbrs) == 1
+    assert doc._.abbrs[0].text == short
+    assert doc._.abbrs[0]._.long_form.text == long
 
 
 def test_detection_multiple(abbrx, nlp):
     text = "this is my abbr (MA) and this is MA (my abbr)"
     doc = abbrx(nlp(text))
-    assert len(doc._.abbreviations) == 2
-    for abbr in doc._.abbreviations:
+    assert len(doc._.abbrs) == 2
+    for abbr in doc._.abbrs:
         assert abbr.text == "MA"
         assert abbr._.long_form.text == "my abbr"
 
@@ -116,8 +116,8 @@ def test_detection_multiple(abbrx, nlp):
 )
 def test_detection_with_loners(abbrx, nlp, text, short, long):
     doc = abbrx(nlp(text))
-    assert len(doc._.abbreviations) == 2
-    for abbr in doc._.abbreviations:
+    assert len(doc._.abbrs) == 2
+    for abbr in doc._.abbrs:
         assert abbr.text == short
         assert abbr._.long_form.text == long
 
@@ -125,4 +125,4 @@ def test_detection_with_loners(abbrx, nlp, text, short, long):
 @pytest.mark.parametrize("text", [("this is not an abbreviation ABB-9V")])
 def test_detection_empty(abbrx, nlp, text):
     doc = abbrx(nlp(text))
-    assert len(doc._.abbreviations) == 0
+    assert len(doc._.abbrs) == 0

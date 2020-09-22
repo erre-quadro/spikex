@@ -34,13 +34,13 @@ def test_topics(wikigraph, doc):
     )
 
 
-def test_idents(wikigraph, nlp):
-    doc = nlp(open("resources/sample4.txt").read())
+def test_idents(wikigraph, doc):
+    # doc = nlp(open("resources/sample4.txt").read())
     doc = WikiIdentX(graph=wikigraph)(doc)
     chunks = [ident.span.lower_ for ident in doc._.idents]
     for ident in doc._.idents:
         print(wikigraph.get_vertex(ident.page)["title"], "->", ident.score)
-    assert chunks == ["an", "apple", "a", "day", "the"]
+    assert chunks == ["apple", "day"]
 
 
 def test_linkage(wikigraph, doc, nlp):

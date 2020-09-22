@@ -15,6 +15,7 @@ def create_wikigraph(
     dumps_path: Path = None,
     max_workers: int = None,
     only_core: bool = None,
+    silent: bool = None,
 ):
     t = "core" if only_core else "full"
     if not output_path.exists():
@@ -33,7 +34,7 @@ def create_wikigraph(
         "max_workers": max_workers,
         "wiki": wiki,
         "version": version,
-        "verbose": True,
+        "verbose": not silent,
     }
     wg = WikiGraph.build(only_core=only_core, **kwargs)
     graph_name = f"{wg.wiki}wiki_{t}"
@@ -41,7 +42,7 @@ def create_wikigraph(
     if not graph_path.exists():
         graph_path.mkdir()
     graph_format = "picklez"
-    with msg.loading("dumping..."):
+    with msg.loading("dump to disk..."):
         wg.dump(graph_path, graph_format=graph_format)
     meta = get_meta()
     meta["name"] = graph_name
