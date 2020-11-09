@@ -14,7 +14,10 @@ requirements = [
     "python-igraph",
     "ftfy",
     "smart-open",
-    "yarl"
+    "yarl",
+    "gensim",
+    "fastnode2vec",
+    "memory_profiler"
 ]
 
 setup_requirements = ["pytest-runner"]

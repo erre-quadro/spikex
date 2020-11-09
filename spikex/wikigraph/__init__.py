@@ -1,1 +1,1 @@
-from .wikigraph import WikiGraph
+from .wikigraph import WikiGraph, train_graph2vec

@@ -5,7 +5,7 @@ from wasabi import msg
 
 from .. import __version__ as spikex_version
 from ..templates.wikigraph import get_meta
-from ..wikigraph import WikiGraph
+from ..wikigraph import WikiGraph, wikigraph
 
 
 def create_wikigraph(
@@ -16,6 +16,7 @@ def create_wikigraph(
     max_workers: int = None,
     only_core: bool = None,
     silent: bool = None,
+    sm: bool = None,
 ):
     t = "core" if only_core else "full"
     if not output_path.exists():
@@ -35,6 +36,7 @@ def create_wikigraph(
         "wiki": wiki,
         "version": version,
         "verbose": not silent,
+        "sm": sm,
     }
     wg = WikiGraph.build(only_core=only_core, **kwargs)
     graph_name = f"{wg.wiki}wiki_{t}"
@@ -54,3 +56,16 @@ def create_wikigraph(
     meta_path = graph_path.joinpath("meta.json")
     meta_path.write_text(json_dumps(meta, indent=2))
     msg.good(f"Successfully created {graph_name}.")
+
+
+def train_node2vec(input_path: Path, dumps_path: Path):
+    kwargs = {
+        "dumps_path": dumps_path,
+        "max_workers": 16,
+        "wiki": "en",
+        "version": "20200701",
+        "verbose": True,
+    }
+    model = wikigraph.train_node2vec(**kwargs)
+    output_path = input_path / "m2"
+    model.save(str(output_path))

@@ -37,6 +37,9 @@ streamlit = "*"
 yarl = "*"
 python-igraph = "*"
 Cython = "*"
+networkx = "*"
+karateclub = "*"
+fastnode2vec = "*"
 
 [pipenv]
 allow_prereleases = true
@@ -46,18 +49,3 @@ file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_
 
 [dev-packages.it-core-news-sm]
 file = "https://github.com/explosion/spacy-models/releases/download/it_core_news_sm-2.3.0/it_core_news_sm-2.3.0.tar.gz"
-
-[packages.simplewiki-core]
-path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200820.tar.gz"
-
-[packages.4e19f51]
-path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200820.tar.gz"
-
-[packages.7fdf1da]
-path = "./graph_data/enwiki-core-package/enwiki_core-0.2.2-dev1/dist/enwiki_core-20200701.tar.gz"
-
-[packages.ffbecc7]
-path = "./graph_data/itwiki-core-package/itwiki_core-0.2.2-dev1/dist/itwiki_core-20200720.tar.gz"
-
-[packages.d20dddb]
-path = "./."

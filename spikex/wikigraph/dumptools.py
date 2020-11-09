@@ -1,6 +1,7 @@
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import zlib
+from contextlib import closing
 from functools import partial
-from multiprocessing import get_context
+from multiprocessing import Pool
 from os import cpu_count
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from smart_open.http import open as http_open
 from tqdm import tqdm
 from wasabi import msg
 from yarl import URL
+
+from spikex.util import pickle_dumps, pickle_loads
 
 __all__ = [
     "iter_page_dump_data",
@@ -200,48 +203,34 @@ def _parse_wiki_sql_dump(wiki_sql_dump_url, parse_fx, **kwargs):
             wiki_sql_dump_url = dump_filepath
     if should_reopen_compress_obj:
         compress_obj, content_len = _get_wiki_dump_obj(wiki_sql_dump_url)
-    with ProcessPoolExecutor(
-        max_workers=max_workers, mp_context=get_context("spawn")
-    ) as executor:
-        fs = []
-        with tqdm(
-            desc="parse", total=content_len, **tqdm_kwargs,
-        ) as pbar, compression_wrapper(compress_obj, "rb") as decompress_obj:
-            compress_bytes_read = 0
-            for line in decompress_obj:
-                task = partial(_parsing_task, parse_fx=parse_fx)
-                fs.append(executor.submit(task, line.decode("latin-1")))
-                i = 0
-                while i < len(fs):
-                    f = fs[i]
-                    if not f.done():
-                        break
-                    i += 1
-                    fs.remove(f)
-                    yield from _iter_job_results(f)
+    with tqdm(
+        desc="parse", total=content_len, **tqdm_kwargs,
+    ) as pbar, compression_wrapper(compress_obj, "rb") as decompress_obj:
+        compress_bytes_read = 0
+        with closing(Pool(max_workers)) as pool:
+            task = partial(_parsing_task, parse_fx=parse_fx)
+            for res in pool.imap_unordered(
+                task, decompress_obj, chunksize=100
+            ):
                 compress_bytes = compress_obj.tell()
                 pbar.update(compress_bytes - compress_bytes_read)
                 compress_bytes_read = compress_bytes
-        with tqdm(desc="wrap up", total=len(fs), disable=tqdm_disable) as pbar:
-            for f in as_completed(fs):
-                fs.remove(f)
-                yield from _iter_job_results(f)
-                pbar.update()
+                yield from pickle_loads(zlib.decompress(res))
     msg.good(dump_name, show=verbose)
 
 
-def _iter_job_results(job):
-    for res in job.result():
-        if not res:
-            continue
-        yield res
-
-
 def _parsing_task(line, parse_fx):
-    return [parse_fx(el) for el in _parse_wiki_sql_dump_line(line)]
+    ret = []
+    for el in _parse_wiki_sql_dump_line(line):
+        res = parse_fx(el)
+        if res is None:
+            continue
+        ret.append(res)
+    return zlib.compress(pickle_dumps(ret, protocol=-1))
 
 
 def _parse_wiki_sql_dump_line(line):
+    line = line.decode("latin1")
     if line.startswith("INSERT INTO"):
         el_end = 0
         el_start = 0

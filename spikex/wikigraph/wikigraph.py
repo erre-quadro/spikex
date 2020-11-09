@@ -1,16 +1,24 @@
 import importlib
 import json
+import logging
 from itertools import combinations, product
 from pathlib import Path
 from typing import Iterable, Union
 
 import regex as re
 from cyac import Trie
+from fastnode2vec import Graph as N2VGraph, Node2Vec
+from gensim.models.word2vec import Word2Vec
 from igraph import Graph, Vertex
 from wasabi import msg
 
 from ..util import pickle_dump, pickle_load
 from . import dumptools as dt
+
+logging.basicConfig(
+    format="%(asctime)s : %(threadName)s : %(levelname)s : %(message)s",
+    level=logging.INFO,
+)
 
 VERTEX_KIND_CATEGORY = dt.WIKI_NS_KIND_CATEGORY
 VERTEX_KIND_PAGE = dt.WIKI_NS_KIND_PAGE
@@ -47,7 +55,8 @@ class WikiGraph:
             if not name.exists():
                 raise IOError
             data_path = name
-            meta = json.load(name / "meta.json")
+            meta_path = name / "meta.json"
+            meta = json.load(meta_path.open())
         elif isinstance(name, str):
             kls = importlib.import_module(name)
             data_path = kls.data_path
@@ -137,7 +146,7 @@ class WikiGraph:
             yield from self.f.find_pages(text)
         for s, e, pages in self.f.find_pages(text):
             filter_pages = []
-            decap_text = text[s + 1: e].replace(" ", "_")
+            decap_text = text[s + 1 : e].replace(" ", "_")
             for page in pages:
                 vx = self.get_vertex(page)
                 decap_title = _clean_title(vx["title"][1:])
@@ -219,29 +228,90 @@ def make_graph(**kwargs):
     iter_page_data = dt.iter_page_dump_data(**kwargs)
     for ns_kind, pageid, title in iter_page_data:
         disambi = False
-        wikidata = None
         if pageid in pprops:
             page_props = pprops[pageid]
             if "hiddencat" in page_props or "noindex" in page_props:
                 continue
             if "disambiguation" in page_props:
                 disambi = True
-            if "wikibase_item" in page_props:
-                wikidata = page_props["wikibase_item"]
         g.add_vertex(
-            pageid,
-            title=title,
-            kind=ns_kind,
-            redirect=False,
-            disambi=disambi,
-            wikidata=wikidata or "",
+            pageid, title=title, kind=ns_kind, redirect=False, disambi=disambi,
         )
         page2id[title] = pageid
-    _add_category_link_edges(g, page2id, **kwargs)
     _add_redirect_edges(g, page2id, **kwargs)
-    _add_disambi_edges(g, page2id, **kwargs)
+    if not kwargs.get("sm", False):
+        _add_category_link_edges(g, page2id, **kwargs)
+        # _add_pagelink_edges(g, page2id, **kwargs)
     msg.no_print = msg_no_print
     return g
+
+
+def train_graph2vec(g: Graph):
+    sentences = (
+        " ".join([e.target_vertex["title"] for e in es])
+        for v in g.vs
+        for es in g.es(_source=v)
+    )
+    return Word2Vec(
+        sentences=sentences,
+        hs=1,
+        alpha=0.05,
+        iter=1,
+        size=300,
+        window=5,
+        min_count=1,
+        workers=8,
+        seed=42,
+    )
+
+
+def train_node2vec(**kwargs):
+    class Edges:
+        def __init__(self) -> None:
+            self.page2id = {}
+            self.id2page = {}
+            self._setup()
+
+        def _setup(self):
+            pprops = _get_pprops(**kwargs)
+            iter_page_data = dt.iter_page_dump_data(**kwargs)
+            for _, pageid, title in iter_page_data:
+                if pageid in pprops:
+                    page_props = pprops[pageid]
+                    if "hiddencat" in page_props or "noindex" in page_props:
+                        continue
+                self.page2id[title] = pageid
+                self.id2page[pageid] = title
+
+        def __iter__(self):
+            sources = (
+                dt.iter_redirect_dump_data,
+                dt.iter_categorylinks_dump_data,
+                dt.iter_pagelinks_dump_data,
+            )
+            for source in sources:
+                for source_id, target_title in source(**kwargs):
+                    if (
+                        source_id not in self.id2page
+                        or target_title not in self.page2id
+                    ):
+                        continue
+                    source_title = self.id2page[source_id]
+                    yield (source_title, target_title)
+
+    g = N2VGraph(Edges(), directed=False, weighted=False)
+    n2v = Node2Vec(
+        g,
+        dim=100,
+        walk_length=10,
+        context=5,
+        p=1,
+        q=1,
+        hs=1,
+        workers=kwargs["max_workers"],
+    )
+    n2v.train(epochs=5)
+    return n2v.wv
 
 
 def _get_pprops(**kwargs):
@@ -257,11 +327,11 @@ def _add_category_link_edges(g, page2id, **kwargs):
     edges = []
     offset = g.ecount()
     only_core = "only_core" in kwargs and kwargs["only_core"]
-    for cl_type, sourceid, target_title in dt.iter_categorylinks_dump_data(
+    for cl_type, source_id, target_title in dt.iter_categorylinks_dump_data(
         **kwargs
     ):
         try:
-            source_vx = g.vs.find(sourceid)
+            source_vx = g.vs.find(source_id)
             target_id = page2id[target_title]
         except (KeyError, ValueError):
             continue
@@ -275,9 +345,9 @@ def _add_category_link_edges(g, page2id, **kwargs):
 def _add_redirect_edges(g, page2id, **kwargs):
     edges = []
     offset = g.ecount()
-    for sourceid, target_title in dt.iter_redirect_dump_data(**kwargs):
+    for source_id, target_title in dt.iter_redirect_dump_data(**kwargs):
         try:
-            source_vx = g.vs.find(sourceid)
+            source_vx = g.vs.find(source_id)
             target_id = page2id[target_title]
         except (KeyError, ValueError):
             continue
@@ -288,21 +358,25 @@ def _add_redirect_edges(g, page2id, **kwargs):
         g.es[offset:]["kind"] = EDGE_KIND_REDIRECT
 
 
-def _add_disambi_edges(g, page2id, **kwargs):
+def _add_pagelink_edges(g, page2id, **kwargs):
     edges = []
+    rate = 10000000
     offset = g.ecount()
-    for sourceid, target_title in dt.iter_pagelinks_dump_data(**kwargs):
+    ids = set(page2id.values())
+    for source_id, target_title in dt.iter_pagelinks_dump_data(**kwargs):
+        if source_id not in ids:
+            continue
         try:
-            source_vx = g.vs.find(sourceid)
             target_id = page2id[target_title]
-        except (KeyError, ValueError):
+        except KeyError:
             continue
-        if not source_vx["disambi"]:
-            continue
-        edges.append((source_vx["name"], target_id))
+        edges.append((source_id, target_id))
+        if len(edges) % rate == 0:
+            g.add_edges(edges)
+            edges = []
     with msg.loading("adding page link edges..."):
         g.add_edges(edges)
-        g.es[offset:]["kind"] = EDGE_KIND_PAGE
+        # g.es[offset:]["kind"] = EDGE_KIND_PAGE
 
 
 def _clean_title(title: str):

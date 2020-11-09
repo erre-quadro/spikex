@@ -9,8 +9,8 @@ MIN_SCORE_THRESHOLD = 0.10
 
 
 class WikiTopicX(WikiIdentX):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         Doc.set_extension("topics", default=[], force=True)
 
     def __call__(self, doc: Doc):

@@ -4,7 +4,6 @@ from typing import Callable, Union
 
 from spacy.tokens import Doc, Span
 
-from ..matcher import Matcher
 from ..wikigraph import WikiGraph
 
 
@@ -19,9 +18,11 @@ class WikiCatchX:
         self,
         graph: Union[WikiGraph, Path, str],
         filter_span: Callable = None,
-        ignore_case: bool = None
+        ignore_case: bool = None,
     ):
-        self.wg = graph if isinstance(graph, WikiGraph) else WikiGraph.load(graph)
+        self.wg = (
+            graph if isinstance(graph, WikiGraph) else WikiGraph.load(graph)
+        )
         self.filter_span = filter_span or (lambda x: True)
         self.ignore_case = ignore_case
         Doc.set_extension("catches", default=[], force=True)
@@ -30,7 +31,9 @@ class WikiCatchX:
         catch_data = {}
         idx2i, text = _preprocess(doc)
         maxtlen = len(text)
-        for start_idx, end_idx, pages in self.wg.find_all_pages(text, self.ignore_case):
+        for start_idx, end_idx, pages in self.wg.find_all_pages(
+            text, self.ignore_case
+        ):
             start_i, end_i = _span_idx2i(start_idx, end_idx, idx2i, maxtlen)
             if start_i >= end_i:
                 continue
@@ -65,14 +68,14 @@ class WikiCatchX:
         empty_catches = []
         for i, catch in enumerate(catches):
             for j, span in enumerate(catch["spans"]):
-        # for i, start, end in matcher(doc):
-            # span = doc[start:end]
+                # for i, start, end in matcher(doc):
+                # span = doc[start:end]
                 if not self.filter_span(span):
                     continue
                 # mlen = end - start
                 mlen = len(span)
                 should_stop = False
-                for k in range(span.start, span.end): # start, end):
+                for k in range(span.start, span.end):  # start, end):
                     if k not in idx2data:
                         continue
                     catch_i, old_span = idx2data[k]
