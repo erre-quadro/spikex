@@ -11,30 +11,27 @@ from ..matcher import Matcher
 
 
 def profile(patterns_path, use_spacy: bool = None):
-    sample_doc = doc()
+    sample_doc = get_doc()
     matcher = (
         SpacyMatcher(sample_doc.vocab)
         if use_spacy
         else Matcher(sample_doc.vocab)
     )
-    matcher.add("Profile", patterns(patterns_path))
+    matcher.add("Profile", get_patterns(patterns_path))
     cProfile.runctx(
-        "matches(matcher, sample_doc)", globals(), locals(), "Profile.prof"
+        "exec_match(matcher, sample_doc)", globals(), locals(), "Profile.prof"
     )
     s = pstats.Stats("Profile.prof")
     msg.divider("Profile stats")
     s.strip_dirs().sort_stats("time").print_stats()
 
 
-def matches(matcher, doc):
-    count = 0
-    for _, s, e in matcher(doc):
-        count += 1
-        # print(doc[s:e], s, e)
-    msg.text("Total matches", count)
+def exec_match(matcher, doc):
+    count = sum(1 for _ in matcher(doc))
+    msg.text(f"Total matches: {count}")
 
 
-def patterns(patterns_path):
+def get_patterns(patterns_path):
     return list(
         [
             p["pattern"] if "pattern" in p else p
@@ -43,7 +40,7 @@ def patterns(patterns_path):
     )
 
 
-def doc():
+def get_doc():
     return spacy.load("en_core_web_sm")(
         open(Path("resources").joinpath("sample.txt"), "r").read()
     )
