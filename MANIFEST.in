@@ -3,10 +3,9 @@ include CONTRIBUTING.rst
 include LICENSE
 include README.md
 
-recursive-include tests *
-recursive-exclude * __pycache__
+recursive-exclude docs *
+recursive-exclude tests *
 recursive-exclude * *.py[co]
-
-recursive-include docs *.rst conf.py *.jpg *.png *.gif
+recursive-exclude * __pycache__
 
 include spikex/pipes/sents/nbmodel.gz
