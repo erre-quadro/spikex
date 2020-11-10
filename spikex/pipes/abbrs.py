@@ -14,7 +14,7 @@ class AbbrX:
     "A simple algorithm for identifying abbreviation definitions in biomedical 
     text.", (Schwartz & Hearst, 2003).
 
-    This class sets the `._.abbreviations` attribute on spaCy Doc.
+    This class sets the `._.abbrs` attribute on spaCy Doc.
 
     The abbreviations attribute is a `List[Span]` where each Span has the `Span._.long_form`
     attribute set to the long form definition of the abbreviation.
@@ -23,12 +23,12 @@ class AbbrX:
     """
 
     def __init__(self, nlp) -> None:
-        Doc.set_extension("abbreviations", default=[], force=True)
+        Doc.set_extension("abbrs", default=[], force=True)
         Span.set_extension("long_form", default=None, force=True)
 
         self.matcher = Matcher(nlp.vocab)
         self.matcher.add(
-            "abbreviations",
+            "abbrs",
             [
                 # Pattern for abbreviations not enclosed in brackets
                 # here we limit to alpha chars only as it could
@@ -53,11 +53,11 @@ class AbbrX:
         """
         dummy_matches = [(-1, int(span.start), int(span.end))]
         filtered = _filter_matches(dummy_matches, doc)
-        abbreviations = list(self.find_matches_for(filtered, doc))
+        abbrs = list(self.find_matches_for(filtered, doc))
 
-        if not abbreviations:
+        if not abbrs:
             return span, set()
-        return abbreviations[0]
+        return abbrs[0]
 
     def __call__(self, doc: Doc) -> Doc:
         matches = self.matcher(doc)
@@ -76,7 +76,7 @@ class AbbrX:
 
         for long_form, short_form in occurences:
             short_form._.long_form = long_form
-            doc._.abbreviations.append(short_form)
+            doc._.abbrs.append(short_form)
         return doc
 
 
