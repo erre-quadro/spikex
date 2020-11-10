@@ -21,13 +21,13 @@ _TEXT_SAMPLE = "this is a sample text useful for testing"
 def test_idx2i(nlp, idx, i, slice_at):
     doc = nlp(_TEXT_SAMPLE)
     doc_idx = idx2i(doc, idx)
+    assert doc_idx == i
     fix_idx = idx - sum((len(t) for t in doc[:slice_at]))
     span = Span(doc, slice_at, len(doc))
     span_idx = idx2i(span, fix_idx)
     tokens = doc[slice_at:]
     tokens_idx = idx2i(tokens, fix_idx)
     fix_i = i - slice_at
-    assert doc_idx == i
     assert span_idx == fix_i
     assert tokens_idx == fix_i
 
@@ -54,6 +54,7 @@ def test_idx2i(nlp, idx, i, slice_at):
 def test_span_idx2i(nlp, start_idx, end_idx, start_i, end_i, slice_at):
     doc = nlp(_TEXT_SAMPLE)
     doc_bounds = span_idx2i(doc, start_idx, end_idx)
+    assert doc_bounds == (start_i, end_i)
     offset_idx = len(doc[:slice_at].text_with_ws)
     fix_start_idx = start_idx - offset_idx
     fix_end_idx = end_idx - offset_idx
@@ -61,7 +62,6 @@ def test_span_idx2i(nlp, start_idx, end_idx, start_i, end_i, slice_at):
     span_bounds = span_idx2i(span, fix_start_idx, fix_end_idx)
     tokens = doc[slice_at:]
     tokens_bounds = span_idx2i(tokens, fix_start_idx, fix_end_idx)
-    assert doc_bounds == (start_i, end_i)
     fix_bounds = (start_i - slice_at, end_i - slice_at)
     assert span_bounds == fix_bounds
     assert tokens_bounds == fix_bounds

@@ -29,13 +29,6 @@ regex = "*"
 typer = "*"
 wasabi = "*"
 spacy = ">=2.2.2,<3.0"
-ftfy = "*"
-smart-open = "*"
-cyac = "*"
-cython = "*"
-streamlit = "*"
-yarl = "*"
-python-igraph = "*"
 
 [pipenv]
 allow_prereleases = true

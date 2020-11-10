@@ -1,7 +1,10 @@
-import time
+import gzip
+import io
 from math import ceil, floor
+from pathlib import Path
 from typing import List, Union
 
+import srsly
 from spacy.tokens import Doc, Span, Token
 
 
@@ -82,21 +85,24 @@ def idx2i(source: Union[Doc, Span, List[Token]], idx: int):
     return _idx2i(idx, 0, max_i)
 
 
-class TimeTrack:
-    def __enter__(self):
-        self.start = time.process_time()
-        self.checkpoint = self.start
-        return self
+def pickle_dumps(data, protocol=None):
+    pickle_dumps(data, protocol=protocol)
 
-    def __exit__(self, *args):
-        self.end = time.process_time()
-        self.interval = self.end - self.start
 
-    def save_checkpoint(self):
-        self.checkpoint = time.process_time()
+def pickle_dump(data, path, protocol=None, compress=None):
+    open = gzip.open if compress else io.open
+    with open(path, "wb") as fd:
+        fd.write(pickle_dumps(data, protocol=protocol))
 
-    def since_checkpoint(self):
-        return f"{time.process_time() - self.checkpoint: .4f}"
 
-    def since_start(self):
-        return f"{time.process_time() - self.start: .4f}"
+def pickle_loads(data):
+    return srsly.pickle_loads(data)
+
+
+def pickle_load(path: Path):
+    with path.open("rb") as fd:
+        # The first two bytes of a gzip file are: 1f 8b
+        is_gz = fd.read(2) == b"\x1f\x8b"
+    open = gzip.open if is_gz else io.open
+    with open(path, "rb") as fd:
+        return pickle_loads(fd.read())
