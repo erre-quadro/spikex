@@ -22,12 +22,12 @@ class AbbrX:
     Note that this class does not replace the spans, or merge them.
     """
 
-    def __init__(self, nlp) -> None:
+    def __init__(self, vocab) -> None:
         Doc.set_extension("abbrs", default=[], force=True)
         Span.set_extension("long_form", default=None, force=True)
 
-        self.matcher = Matcher(nlp.vocab)
-        self.matcher.add(
+        self._matcher = Matcher(vocab)
+        self._matcher.add(
             "abbrs",
             [
                 # Pattern for abbreviations not enclosed in brackets
@@ -60,7 +60,7 @@ class AbbrX:
         return abbrs[0]
 
     def __call__(self, doc: Doc) -> Doc:
-        matches = self.matcher(doc)
+        matches = self._matcher(doc)
         matches_no_punct = set(
             [
                 (
@@ -203,7 +203,7 @@ def _filter_matches(
     matcher_output: Iterable[Tuple[int, int, int]], doc: Doc
 ) -> Iterable[Tuple[Span, Span]]:
     # Filter into two cases:
-    # 1. <Short Form> ( <Long Form> )
+    # 1. <Short Form> (<Long Form>)
     # 2. <Long Form> (<Short Form>) [this case is most common].
     candidates = []
     for match in matcher_output:

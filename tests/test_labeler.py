@@ -1,8 +1,8 @@
-from spikex.labelers import PatternLabeler
+from spikex.labeler import Labeler
 
 
 def test_labelings(nlp):
-    labeler = PatternLabeler(nlp.vocab)
+    labeler = Labeler(nlp.vocab)
     # first label
     labeler.add("NO_TEST", [[{"TEXT": "test", "OP": "!"}]])
     doc = labeler(nlp("This is a test"))

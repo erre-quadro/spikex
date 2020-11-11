@@ -3,12 +3,11 @@ from spacy.tokens import Doc, Span, Token
 from .matcher import Matcher
 
 
-class PatternLabeler:
+class Labeler:
     def __init__(self, vocab, validate=None):
-        Doc.set_extension("labelings", default=[], force=True)
-        Token.set_extension("labels", default=[], force=True)
-
         self._matcher = Matcher(vocab, validate)
+        Token.set_extension("labels", default=[], force=True)
+        Doc.set_extension("labelings", default=[], force=True)
 
     def add(self, label, patterns, on_match=None):
         """
@@ -35,15 +34,14 @@ class PatternLabeler:
         Parameters
         ----------
         doc: Doc
-            The document to label over.
+            The doc to label over.
 
         Returns
         -------
         Doc
             The doc after labeling.
         """
-        matches = self._matcher(doc)
-        for key, start, end in matches:
+        for key, start, end in self._matcher(doc):
             label = doc.vocab.strings[key]
             span = Span(doc, start, end, label)
             for token in span:
