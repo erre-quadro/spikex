@@ -3,7 +3,7 @@ from spacy.tokens import Doc, Span, Token
 from ..matcher import Matcher
 
 
-class Labeler:
+class LabelX:
     def __init__(self, vocab, validate=None, only_longest=None):
         self._only_longest = only_longest
         self._matcher = Matcher(vocab, validate)

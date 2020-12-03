@@ -1,6 +1,6 @@
 import pytest
 
-from spikex.pipes.phrasers import NounPhraseX, VerbPhraseX
+from spikex.pipes.phrases import NounPhraseX, VerbPhraseX
 
 
 @pytest.mark.parametrize(

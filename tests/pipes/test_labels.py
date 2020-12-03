@@ -1,11 +1,11 @@
 import pytest
 
 from spikex.pipes.abbrs import AbbrX
-from spikex.pipes.labeler import Labeler
+from spikex.pipes.labels import LabelX
 
 
-def test_labelings(nlp):
-    labeler = Labeler(nlp.vocab)
+def test_simple_labels(nlp):
+    labeler = LabelX(nlp.vocab)
     # first label
     labeler.add("NO_TEST", [[{"TEXT": "test", "OP": "!"}]])
     doc = labeler(nlp("This is a test"))
@@ -35,7 +35,7 @@ def test_labelings(nlp):
 )
 def test_merge_abbrs_labelings(nlp, text, label, patterns):
     abbrx = AbbrX(nlp.vocab)
-    labeler = Labeler(nlp.vocab)
+    labeler = LabelX(nlp.vocab)
     labeler.add(label, patterns)
     doc = labeler(abbrx(nlp(text)))
     assert len(doc._.labelings) == 2
@@ -71,7 +71,7 @@ def test_merge_abbrs_labelings(nlp, text, label, patterns):
     ),
 )
 def test_keep_longest_only(nlp, text, label, patterns):
-    labeler = Labeler(nlp.vocab, only_longest=True)
+    labeler = LabelX(nlp.vocab, only_longest=True)
     labeler.add(label, patterns)
     doc = labeler(nlp(text))
     assert len(doc._.labelings) == 1
