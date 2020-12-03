@@ -29,15 +29,10 @@ regex = "*"
 typer = "*"
 wasabi = "*"
 spacy = ">=2.2.2,<3.0"
+gensim = "*"
 
 [pipenv]
 allow_prereleases = true
 
 [dev-packages.en-core-web-sm]
 file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz"
-
-[dev-packages.spikex]
-path = "."
-
-[dev-packages.simplewiki-core]
-path = "./graph_data/simplewiki-core-package/simplewiki_core-0.2.2-dev1/dist/simplewiki_core-20200701.tar.gz"

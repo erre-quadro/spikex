@@ -1,7 +1,9 @@
 if __name__ == "__main__":
-    import typer
     import sys
+
+    import typer
     from wasabi import msg
+
     from . import cli
 
     commands = {

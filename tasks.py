@@ -14,7 +14,7 @@ ROOT_DIR = Path(__file__).parent
 SETUP_FILE = ROOT_DIR.joinpath("setup.py")
 TEST_DIR = ROOT_DIR.joinpath("tests")
 SOURCE_DIR = ROOT_DIR.joinpath("spikex")
-EXAMPLES_DIR = ROOT_DIR.joinpath("examples")
+# EXAMPLES_DIR = ROOT_DIR.joinpath("examples")
 TOX_DIR = ROOT_DIR.joinpath(".tox")
 COVERAGE_FILE = ROOT_DIR.joinpath(".coverage")
 COVERAGE_DIR = ROOT_DIR.joinpath("htmlcov")
@@ -22,7 +22,7 @@ COVERAGE_REPORT = COVERAGE_DIR.joinpath("index.html")
 DOCS_DIR = ROOT_DIR.joinpath("docs")
 DOCS_BUILD_DIR = DOCS_DIR.joinpath("_build")
 DOCS_INDEX = DOCS_BUILD_DIR.joinpath("index.html")
-PYTHON_DIRS = [str(d) for d in [EXAMPLES_DIR, SOURCE_DIR, TEST_DIR]]
+PYTHON_DIRS = [str(d) for d in (SOURCE_DIR, TEST_DIR)]
 
 
 def _delete_file(file):
@@ -60,12 +60,10 @@ def format(c, check=False):
     # Run isort
     isort_options = [
         "--check-only" if check else "",
-        "--apply",
         "--combine-as",
         "--force-grid-wrap=0",
         "--line-width 79", # PEP 8 says 79.
         "--multi-line=3",
-        "--recursive",
         "--trailing-comma",
     ]
     c.run("isort {} {}".format(" ".join(isort_options), python_dirs_string))
