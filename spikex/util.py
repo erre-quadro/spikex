@@ -15,11 +15,8 @@ def span_idx2i(
     maxlen: int = None,
 ):
     start_i = 0 if start_idx == 0 else -1
-    maxlen = maxlen or (
-        sum([len(t) for t in source])
-        if isinstance(source, list)
-        else len(source.text)
-    )
+    maxlen = maxlen or (sum([len(t) for t in source]) if isinstance(
+        source, list) else len(source.text))
     end_i = len(source) if end_idx == maxlen else -1
     if start_i >= 0 and end_i >= 0:
         return start_i, end_i
