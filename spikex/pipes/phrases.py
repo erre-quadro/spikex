@@ -65,7 +65,8 @@ def _fix_overlappings(spans):
             # good if spans are identical
             # or they aren't overlapping
             if (
-                span == other_span
+                span.start == other_span.start
+                and span.end == other_span.end
                 or span.start >= other_span.end
                 or span.end <= other_span.start
             ):

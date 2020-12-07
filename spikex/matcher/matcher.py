@@ -188,8 +188,7 @@ class Matcher(object):
             raise ValueError(Errors.E156.format())
         matches = []
         seen = set()
-        tokens = [token for token in doc]
-        for match in _find_matches(tokens, self._specs):
+        for match in _find_matches(doc, self._specs):
             if match in seen:
                 continue
             seen.add(match)
