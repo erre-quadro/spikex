@@ -523,7 +523,7 @@ def _get_token_attr(token: Token, attr: str):
     if attr == "REGEX":
         return token.text
     elif attr == "LEMMA":
-        return token.lemma_
+        return token.lemma_.lower()
     elif attr == "NORM":
         if not token.norm_:
             return token.lex.norm
