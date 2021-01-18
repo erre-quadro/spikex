@@ -5,16 +5,17 @@ def test_clusters(nlp):
     chunks = [
         nlp(chunk)
         for chunk in (
-            "yellow",
-            "red",
             "orange",
+            "mango",
+            "papaya",
+            "indigo",
+            "red",
             "violet",
             "purple",
-            "black",
-            "white",
         )
     ]
-    clusters = cluster_chunks(chunks)
-    assert len(clusters) == 2
-    assert set(clusters[0]) == set(chunks[:5])
-    assert set(clusters[1]) == set(chunks[5:])
+    clusters = sorted(cluster_chunks(chunks), key=len)
+    assert len(clusters) == 3
+    assert set(clusters[0]) == set(chunks[:1])
+    assert set(clusters[1]) == set(chunks[1:3])
+    assert set(clusters[2]) == set(chunks[3:])
