@@ -49,7 +49,7 @@ import spacy
 from spikex.pipes import AbbrX
 
 nlp = spacy.load("en_core_web_sm")
-abbrx = AbbrX(nlp)
+abbrx = AbbrX(nlp.vocab)
 nlp.add_pipe(abbrx)
 doc = nlp("a little snippet with abbreviations (abbrs)")
 doc._.abbrs
