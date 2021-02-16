@@ -2,8 +2,6 @@ import pytest
 import spacy
 from spacy.util import get_lang_class
 
-from spikex.wikigraph import WikiGraph
-
 
 def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", help="include slow tests")

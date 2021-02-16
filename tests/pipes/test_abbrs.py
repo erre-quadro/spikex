@@ -17,8 +17,13 @@ def _get_long_form(nlp, text, short):
 
 
 @pytest.fixture(scope="module")
+<<<<<<< HEAD:tests/pipes/test_abbrs.py
 def abbrx(nlp):
     return AbbrX(nlp)
+=======
+def abbrx(en_vocab):
+    return AbbrX(en_vocab)
+>>>>>>> master:tests/pipes/test_abbrs.py
 
 
 @pytest.mark.parametrize(

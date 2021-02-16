@@ -9,8 +9,11 @@ It aims to help in building knowledge extraction tools with almost-zero effort.
 
 ## Features
 
+<<<<<<< HEAD
 - ** **NEW** ** Wikipedia graph for entities and categories;
 - ** **NEW** ** Knowledge extraction (KEX) pipes;
+=======
+>>>>>>> master
 - **Matcher** based on [spaCy's one](https://github.com/explosion/spaCy/blob/master/spacy/matcher/matcher.pyx) but boosted;
 - **Abbreviations** and **acronyms** detector based on [scispacy's one](https://github.com/allenai/scispacy/blob/master/scispacy/abbreviation.py) with improvements;
 - **Sentence** splitter based on [Splitta](https://github.com/dgillick/splitta) modernized;
@@ -133,7 +136,8 @@ import spacy
 from spikex.pipes import AbbrX
 
 nlp = spacy.load("en_core_web_sm")
-nlp.add_pipe(AbbrX(nlp))
+abbrx = AbbrX(nlp)
+nlp.add_pipe(abbrx)
 doc = nlp("a little snippet with abbreviations (abbrs)")
 doc._.abbrs
 ```
@@ -147,7 +151,11 @@ import spacy
 from spikex.pipes import SentX
 
 nlp = spacy.load("en_core_web_sm")
-nlp.add_pipe(SentX(), before="parser")
+sentx = SentX()
+nlp.add_pipe(sentx, before="parser")
 doc = nlp("A little sentence. Followed by another one.")
 doc.sents
 ```
+
+## That's all folks
+Have fun!
