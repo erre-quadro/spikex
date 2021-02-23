@@ -13,7 +13,7 @@ class LabelX:
     def add(self, label, patterns, on_match=None):
         """
         Add a labeling-rules to the labeler.
-        
+
         Parameters
         ----------
         label: str
@@ -29,7 +29,7 @@ class LabelX:
         """
         Collect all labels related to patterns matching tokens.
         Each token have a `labels` extension in which to store them.
-        The supplied `Doc` have a `labelings` extension in which 
+        The supplied `Doc` have a `labelings` extension in which
         all labeled spans are collected.
         If the doc has abbrs, they contribute to label spans.
 

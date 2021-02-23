@@ -3,8 +3,8 @@ import regex as re
 
 class Fragment:
     """
-	A fragment of text that ends with a possible sentence boundary
-	"""
+    A fragment of text that ends with a possible sentence boundary
+    """
 
     def __init__(self, tokens):
         self.tokens = tokens

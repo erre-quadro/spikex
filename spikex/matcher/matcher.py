@@ -24,8 +24,8 @@ class Matcher(object):
 
     def __len__(self):
         """
-        Get the number of rules added to the matcher. 
-        Note that this only returns the number of rules (identical with the number of IDs), 
+        Get the number of rules added to the matcher.
+        Note that this only returns the number of rules (identical with the number of IDs),
         not the number of individual patterns.
 
         Returns
@@ -64,7 +64,7 @@ class Matcher(object):
 
         Returns
         -------
-        tuple 
+        tuple
             The rule, as an (on_match, patterns) tuple.
         """
         key = self._normalize_key(key)
@@ -79,10 +79,10 @@ class Matcher(object):
         ----------
         key: str
             The key to retrieve.
-        
+
         Returns
         -------
-        tuple: 
+        tuple:
             The rule, as an (on_match, patterns) tuple.
         """
         key = self._normalize_key(key)
@@ -90,14 +90,14 @@ class Matcher(object):
 
     def add(self, key, patterns, on_match=None):
         """
-        Add a match-rule to the matcher. 
-        A match-rule consists of: 
-            an ID key, 
+        Add a match-rule to the matcher.
+        A match-rule consists of:
+            an ID key,
             a list of patterns,
             an on_match callback.
-        If the key exists, the patterns are appended to the 
-        previous ones, and the previous on_match callback is replaced. The 
-        `on_match` callback will receive the arguments `(matcher, doc, i, matches)`. 
+        If the key exists, the patterns are appended to the
+        previous ones, and the previous on_match callback is replaced. The
+        `on_match` callback will receive the arguments `(matcher, doc, i, matches)`.
         You can also set `on_match` to `None` to not perform any action.
         A pattern consists of one or more `token_specs`, where a `token_spec`
         is a dictionary mapping attribute IDs to values, and optionally a
@@ -114,7 +114,7 @@ class Matcher(object):
 
         Parameters
         ----------
-        key: str 
+        key: str
             The match ID.
         patterns: list
             The patterns to add for the given key.
@@ -148,12 +148,12 @@ class Matcher(object):
 
     def remove(self, key: str):
         """
-        Remove a rule from the matcher. 
+        Remove a rule from the matcher.
         A ValueError is raised if the key does not exist.
 
         Parameters
         ----------
-        key: str 
+        key: str
             The ID of the match rule.
         """
         key = self._normalize_key(key)

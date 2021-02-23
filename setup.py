@@ -4,20 +4,18 @@ with open("README.md") as readme_file:
     readme = readme_file.read()
 
 requirements = [
-    "jsonschema",
-    "regex",
-    "spacy>=2.2.2,<3.0",
-    "wasabi",
-    "typer",
     "cyac",
     "cython",
-    "python-igraph",
     "ftfy",
+    "jsonschema",
+    "memory_profiler",
+    "python-igraph",
+    "regex",
     "smart-open",
+    "spacy>=2.2.2,<3.0",
+    "typer",
+    "wasabi",
     "yarl",
-    "gensim",
-    "fastnode2vec",
-    "memory_profiler"
 ]
 
 setup_requirements = ["pytest-runner"]

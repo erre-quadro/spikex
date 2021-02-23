@@ -4,48 +4,40 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
-flake8 = "*"
 alabaster = "*"
 autoflake = "*"
 bump2version = "*"
 coverage = "*"
+flake8 = "*"
 invoke = "*"
 isort = "*"
+memory-profiler = "*"
 mock = "*"
+profilehooks = "*"
 py-spy = "*"
 pylint = "*"
 pytest = "*"
 pytest-benchmark = "*"
+pytest-profiling = "*"
 Sphinx = "*"
+streamlit = "*"
 vulture = "*"
 wheel = "*"
 yapf = "*"
-pytest-profiling = "*"
-profilehooks = "*"
-memory-profiler = "*"
 
 [packages]
+cyac = "*"
+Cython = "*"
+ftfy = "*"
 jsonschema = "*"
 regex = "*"
+smart-open = "*"
+spacy = ">=2.2.2,<3.0"
 typer = "*"
 wasabi = "*"
-spacy = ">=2.2.2,<3.0"
-ftfy = "*"
-smart-open = "*"
-cyac = "*"
-streamlit = "*"
+
 yarl = "*"
 python-igraph = "*"
-Cython = "*"
-networkx = "*"
-karateclub = "*"
-fastnode2vec = "*"
 
 [pipenv]
 allow_prereleases = true
-
-[dev-packages.en-core-web-sm]
-file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz"
-
-[dev-packages.it-core-news-sm]
-file = "https://github.com/explosion/spacy-models/releases/download/it_core_news_sm-2.3.0/it_core_news_sm-2.3.0.tar.gz"

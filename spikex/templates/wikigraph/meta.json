@@ -1,0 +1,13 @@
+{
+    "name":"",
+    "fullname":"",
+    "license":"MIT",
+    "graph_format":"",
+    "author":"Erre Quadro srl",
+    "url":"https://errequadrosrl.com",
+    "email":"paolo.arduin@errequadrosrl.com",
+    "description":"Ontology Graph based on Wikipedia's categories and relations with pages.",
+    "version":"",
+    "spikex_version":"",
+    "sources":[]
+}

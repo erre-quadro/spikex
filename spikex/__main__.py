@@ -9,7 +9,6 @@ if __name__ == "__main__":
     commands = {
         "create-wikigraph": cli.create_wikigraph,
         "package-wikigraph": cli.package_wikigraph,
-        "train-wikigraph": cli.train_node2vec,
         "profile-matcher": cli.profile_matcher,
         "profile-wikigraph-load": cli.profile_wikigraph_load,
         "profile-wikigraph-exec": cli.profile_wikigraph_exec,

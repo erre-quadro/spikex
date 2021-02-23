@@ -7,7 +7,7 @@ import spacy
 from srsly import read_jsonl
 
 from ..matcher import Matcher
-from ..wikigraph import WikiGraph
+from ..wikigraph import load
 
 
 def profile_matcher(patterns_path: str, memory: bool = None):
@@ -28,13 +28,13 @@ def profile_matcher(patterns_path: str, memory: bool = None):
 
 def profile_wikigraph_load(graph_name: str, memory: bool = None):
     def func():
-        _ = _load_wikigraph(graph_name)
+        _ = load(graph_name)
 
     _profile(func, memory)
 
 
 def profile_wikigraph_exec(graph_name: str, memory: bool = None):
-    wg = _load_wikigraph(graph_name)
+    wg = load(graph_name)
     text = """
     Hong Kong (CNN) China's top military commander in Hong Kong has emphasized the role of the People's Liberation Army (PLA) in upholding "national sovereignty" in the city a day ahead of expected anti-government protests.
 
@@ -45,14 +45,10 @@ def profile_wikigraph_exec(graph_name: str, memory: bool = None):
     """
 
     def func():
-        for _ in wg.find_all_pages(text):
+        for _ in wg.find_pages(text):
             pass
 
     _profile(func, memory)
-
-
-def _load_wikigraph(graph_name):
-    return WikiGraph.load(graph_name=graph_name)
 
 
 def _profile(fn, memory=None):

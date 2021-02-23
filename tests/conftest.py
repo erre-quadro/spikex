@@ -2,6 +2,8 @@ import pytest
 import spacy
 from spacy.util import get_lang_class
 
+from spikex.wikigraph import load
+
 
 def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", help="include slow tests")
@@ -18,7 +20,7 @@ def pytest_runtest_setup(item):
 
 @pytest.fixture(scope="session")
 def wikigraph():
-    return WikiGraph.load("simplewiki_core")
+    return load("simplewiki_core")
 
 
 @pytest.fixture(scope="session")

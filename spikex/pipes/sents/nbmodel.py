@@ -12,12 +12,12 @@ from .fragment import Fragment
 
 class NBModel:
     """
-	Naive Bayes model, with a few tweaks:
-	- all feature types are pooled together for normalization (this might help
-	  because the independence assumption is so broken for our features)
-	- smoothing: add 0.1 to all counts
-	- priors are modified for better performance (this is mysterious but works much better)
-	"""
+    Naive Bayes model, with a few tweaks:
+    - all feature types are pooled together for normalization (this might help
+      because the independence assumption is so broken for our features)
+    - smoothing: add 0.1 to all counts
+    - priors are modified for better performance (this is mysterious but works much better)
+    """
 
     _PRIOR_FEAT = "<prior>"
 
