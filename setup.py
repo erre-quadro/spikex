@@ -4,8 +4,8 @@ with open("README.md") as readme_file:
     readme = readme_file.read()
 
 requirements = [
-    "cyac",
     "cython",
+    "cyac",
     "ftfy",
     "jsonschema",
     "memory_profiler",
