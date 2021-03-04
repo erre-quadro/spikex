@@ -1,0 +1,5 @@
+jsonschema
+regex
+spacy<3.0
+typer
+wasabi

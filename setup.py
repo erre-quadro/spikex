@@ -3,15 +3,7 @@ from setuptools import setup, find_packages
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-requirements = [
-    "jsonschema",
-    "regex",
-    "spacy>=2.2.2,<3.0",
-    "wasabi",
-    "typer",
-]
-
-setup_requirements = ["pytest-runner"]
+requirements = open("requirements.txt").read().splitlines()
 
 test_requirements = ["pytest"]
 
@@ -36,7 +28,6 @@ setup(
     keywords="spikex",
     name="spikex",
     packages=find_packages(include=["spikex", "spikex.*"]),
-    setup_requires=setup_requirements,
     test_suite="tests",
     tests_require=test_requirements,
     url="https://github.com/erre-quadro/spikex",
