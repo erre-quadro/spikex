@@ -35,7 +35,6 @@ smart-open = "*"
 spacy = ">=2.2.2,<3.0"
 typer = "*"
 wasabi = "*"
-
 yarl = "*"
 python-igraph = "*"
 

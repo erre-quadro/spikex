@@ -8,7 +8,6 @@ requirements = [
     "cyac",
     "ftfy",
     "jsonschema",
-    "memory_profiler",
     "python-igraph",
     "regex",
     "smart-open",
