@@ -18,7 +18,7 @@ def test_cluster_chunks(nlp):
 
 
 def test_clusterx(nlp):
-    clusterx = ClusterX(min_score=0.6)
+    clusterx = ClusterX(min_score=0.65)
     doc = clusterx(
         nlp("Grab this juicy orange and watch a dog chasing a cat.")
     )
