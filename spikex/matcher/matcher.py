@@ -1,12 +1,25 @@
+from typing import Union
+
 import regex as re
-from spacy.attrs import DEP, LEMMA, POS, TAG, intify_attr
+from spacy.attrs import DEP, LEMMA, MORPH, POS, TAG, intify_attr
 from spacy.errors import Errors, MatchPatternError
-from spacy.tokens import Doc, Token
-from spacy.util import get_json_validator, validate_json
+from spacy.tokens import Doc, Span, Token
+
+try:
+    from spacy.util import get_json_validator, validate_json
+
+    from ._schemas import TOKEN_PATTERN_SCHEMA
+except ImportError:
+    # Pattern validation changed as of spaCy 3.0
+    from spacy.schemas import validate_token_pattern
+
+from functools import partial
 
 from ._schemas import TOKEN_PATTERN_SCHEMA
 
 __all__ = ["Matcher"]
+
+DocLike = Union[Doc, Span]
 
 
 class Matcher(object):
@@ -17,15 +30,20 @@ class Matcher(object):
         self._callbacks = {}
         self._seen_attrs = set()
         self.vocab = vocab
+        self.validate = validate
 
-        self.validator = (
-            get_json_validator(TOKEN_PATTERN_SCHEMA) if validate else None
-        )
+        try:
+            self._validator = partial(
+                validate_json,
+                validator=get_json_validator(TOKEN_PATTERN_SCHEMA),
+            )
+        except NameError:
+            self._validator = validate_token_pattern
 
     def __len__(self):
         """
-        Get the number of rules added to the matcher. 
-        Note that this only returns the number of rules (identical with the number of IDs), 
+        Get the number of rules added to the matcher.
+        Note that this only returns the number of rules (identical with the number of IDs),
         not the number of individual patterns.
 
         Returns
@@ -64,7 +82,7 @@ class Matcher(object):
 
         Returns
         -------
-        tuple 
+        tuple
             The rule, as an (on_match, patterns) tuple.
         """
         key = self._normalize_key(key)
@@ -79,10 +97,10 @@ class Matcher(object):
         ----------
         key: str
             The key to retrieve.
-        
+
         Returns
         -------
-        tuple: 
+        tuple:
             The rule, as an (on_match, patterns) tuple.
         """
         key = self._normalize_key(key)
@@ -90,14 +108,14 @@ class Matcher(object):
 
     def add(self, key, patterns, on_match=None):
         """
-        Add a match-rule to the matcher. 
-        A match-rule consists of: 
-            an ID key, 
+        Add a match-rule to the matcher.
+        A match-rule consists of:
+            an ID key,
             a list of patterns,
             an on_match callback.
-        If the key exists, the patterns are appended to the 
-        previous ones, and the previous on_match callback is replaced. The 
-        `on_match` callback will receive the arguments `(matcher, doc, i, matches)`. 
+        If the key exists, the patterns are appended to the
+        previous ones, and the previous on_match callback is replaced. The
+        `on_match` callback will receive the arguments `(matcher, doc, i, matches)`.
         You can also set `on_match` to `None` to not perform any action.
         A pattern consists of one or more `token_specs`, where a `token_spec`
         is a dictionary mapping attribute IDs to values, and optionally a
@@ -114,12 +132,12 @@ class Matcher(object):
 
         Parameters
         ----------
-        key: str 
+        key: str
             The match ID.
         patterns: list
             The patterns to add for the given key.
-        on_match: callable, optional
-             , by default None.
+        on_match: callable
+            Optional callback executed on match.
         """
         errors = {}
         if on_match is not None and not hasattr(on_match, "__call__"):
@@ -129,14 +147,17 @@ class Matcher(object):
                 raise ValueError(Errors.E012.format(key=key))
             if not isinstance(pattern, list):
                 raise ValueError(Errors.E178.format(pat=pattern, key=key))
-            if self.validator:
-                errors[i] = validate_json(pattern, self.validator)
+            if self.validate:
+                errors[i] = self._validator(pattern)
         if any(err for err in errors.values()):
             raise MatchPatternError(key, errors)
         key = self._normalize_key(key)
         self._specs.setdefault(key, [])
-        for pattern in patterns:
-            patternspec = _preprocess_pattern(pattern)
+        for i, pattern in enumerate(patterns):
+            try:
+                patternspec = _preprocess_pattern(pattern)
+            except ValueError as err:
+                raise MatchPatternError(key, {i: [str(err)]})
             self._specs[key].append(patternspec)
             for token in pattern:
                 for attr in token:
@@ -148,12 +169,12 @@ class Matcher(object):
 
     def remove(self, key: str):
         """
-        Remove a rule from the matcher. 
+        Remove a rule from the matcher.
         A ValueError is raised if the key does not exist.
 
         Parameters
         ----------
-        key: str 
+        key: str
             The ID of the match rule.
         """
         key = self._normalize_key(key)
@@ -163,7 +184,7 @@ class Matcher(object):
         self._patterns.pop(key)
         self._callbacks.pop(key)
 
-    def __call__(self, doc: Doc):
+    def __call__(self, doclike: DocLike, allow_missing=False):
         """
         Find all token sequences matching the supplied patterns.
 
@@ -179,16 +200,26 @@ class Matcher(object):
             describing the matches. A match tuple describes a span
             `doc[start:end]`.
         """
-        if (
-            len(set((LEMMA, POS, TAG)) & self._seen_attrs) > 0
-            and not doc.is_tagged
-        ):
-            raise ValueError(Errors.E155.format())
-        if DEP in self._seen_attrs and not doc.is_parsed:
-            raise ValueError(Errors.E156.format())
+        if not allow_missing:
+            for attr, pipe in (
+                (TAG, "tagger"),
+                (POS, "morphologizer"),
+                (MORPH, "morphologizer"),
+                (LEMMA, "lemmatizer"),
+                (DEP, "parser"),
+            ):
+                if attr not in self._seen_attrs or doclike.has_annotation(
+                    attr
+                ):
+                    continue
+                raise ValueError(
+                    Errors.E155.format(
+                        pipe=pipe, attr=self.vocab.strings.as_string(attr)
+                    )
+                )
         matches = []
         seen = set()
-        for match in _find_matches(doc, self._specs):
+        for match in _find_matches(doclike, self._specs):
             if match in seen:
                 continue
             seen.add(match)
@@ -196,7 +227,7 @@ class Matcher(object):
         for i, match in enumerate(matches):
             on_match = self._callbacks.get(match[0], None)
             if on_match is not None:
-                on_match(self, doc, i, matches)
+                on_match(self, doclike, i, matches)
         return matches
 
     def _normalize_key(self, key):
@@ -321,13 +352,6 @@ def _preprocess_pattern(pattern):
         if not isinstance(tokens_spec, dict):
             raise ValueError(Errors.E154.format())
         for attr, value in {**tokens_spec}.items():
-            # normalize attributes
-            if attr.islower():
-                del tokens_spec[attr]
-                attr = attr.upper()
-                tokens_spec[attr] = value
-            if attr not in TOKEN_PATTERN_SCHEMA["items"]["properties"]:
-                raise ValueError(Errors.E152.format(attr=attr))
             if not (
                 isinstance(value, str)
                 or isinstance(value, bool)
@@ -337,11 +361,26 @@ def _preprocess_pattern(pattern):
                 raise ValueError(
                     Errors.E153.format(vtype=type(value).__name__)
                 )
-            if attr == "OP":
+            # normalize attributes
+            if attr.islower():
+                del tokens_spec[attr]
+                attr = attr.upper()
+                tokens_spec[attr] = value
+            if attr == "SENT_START":
+                del tokens_spec[attr]
+                attr = "IS_SENT_START"
+                tokens_spec[attr] = value
+            elif attr == "OP":
                 continue
-            if attr == "_" and not isinstance(value, dict):
-                raise ValueError(Errors.E154.format())
             is_extension = attr == "_"
+            if is_extension and not isinstance(value, dict):
+                raise ValueError(Errors.E154.format())
+            if not is_extension and isinstance(value, dict):
+                for k, v in {**value}.items():
+                    if k.isalpha() and k.isupper():
+                        continue
+                    del value[k]
+                    value[k.upper()] = v
             for a in value.keys() if is_extension else [attr]:
                 pattern_spec.setdefault(a, ([None] * num_tokens, is_extension))
     for i, tokens_spec in enumerate(pattern):
@@ -395,7 +434,7 @@ def _finalize_pattern_spec(spec):
 
 def _align_tokens_spec(spec, tokens_spec, index):
     xp_cond_delim = f"(?({index + 1}){_XP_TOKEN_DELIM}|)"
-    for a1, (xp, q) in _attrs_spec_from_tokens_spec(tokens_spec, index):
+    for a1, (xp, q) in _attrs_spec_from_tokens_spec(tokens_spec):
         fix_q = q if q != _ZERO else _ONE
         needs_delim = fix_q == _ONE
         for a2, (xps, _) in spec.items():
@@ -415,13 +454,13 @@ def _align_tokens_spec(spec, tokens_spec, index):
             xps[index] = (_xp, _q)
 
 
-def _attrs_spec_from_tokens_spec(tokens_spec, index):
+def _attrs_spec_from_tokens_spec(tokens_spec):
     if not tokens_spec:
         yield None, (_XP_ONE_TOKEN, _ONE)
     elif "REGEX" in tokens_spec:
         yield "REGEX", (tokens_spec["REGEX"], _NONE)
     else:
-        q = tokens_spec["OP"] if "OP" in tokens_spec else None
+        q = tokens_spec.get("OP")
         if q and len(tokens_spec) == 1:
             yield None, (_XP_ONE_TOKEN, q)
         else:
@@ -431,13 +470,18 @@ def _attrs_spec_from_tokens_spec(tokens_spec, index):
                 yield attr, (xp, q)
 
 
-def _attrs_xp_from_tokens_spec(tokens_spec):
+def _attrs_xp_from_tokens_spec(tokens_spec, skip_validate=False):
     for attr, value in tokens_spec.items():
         if attr == "OP":
             continue
         if attr == "_":
-            yield from _attrs_xp_from_tokens_spec(value)
+            yield from _attrs_xp_from_tokens_spec(value, True)
             continue
+        if (
+            not skip_validate
+            and attr not in TOKEN_PATTERN_SCHEMA["items"]["properties"]
+        ):
+            raise ValueError(Errors.E152.format(attr=attr))
         if isinstance(value, int):
             value = str(value)
         if isinstance(value, dict):
@@ -448,6 +492,8 @@ def _attrs_xp_from_tokens_spec(tokens_spec):
                     yield attr, _xp_from_setmember(p, a)
                 elif p in _COMPARISON_PREDICATES:
                     yield attr, _xp_from_comparison(p, a)
+                else:
+                    raise ValueError()
             continue
         yield attr, (
             re.escape(value) if attr not in _REGEX_PREDICATES else value

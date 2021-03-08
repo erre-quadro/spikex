@@ -6,9 +6,15 @@ from spikex.pipes.phrases import NounPhraseX, VerbPhraseX
 @pytest.mark.parametrize(
     "text, np_coords",
     [
-        ("a simple noun phrase and a second noun phrase.", ((0, 4), (5, 9),)),
+        (
+            "a simple noun phrase and a second noun phrase.",
+            (
+                (0, 4),
+                (5, 9),
+            ),
+        ),
         ("this is the long and unexpectedly complex noun phrase.", ((2, 9),)),
-        ("I am being stuck", ())
+        ("I am being stuck", ()),
     ],
 )
 def test_noun_phraser(nlp, text, np_coords):
@@ -21,7 +27,7 @@ def test_noun_phraser(nlp, text, np_coords):
     [
         ("this was created obviously simple.", ((1, 3),)),
         ("I have been deeply trying to find it.", ((1, 7),)),
-        ("this simply big apple", ())
+        ("this simply big apple", ()),
     ],
 )
 def test_verb_phraser(nlp, text, vp_coords):

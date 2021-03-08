@@ -1,5 +1,5 @@
 jsonschema
 regex
-spacy<3.0
+spacy>2.3
 typer
 wasabi

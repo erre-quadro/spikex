@@ -10,8 +10,8 @@ from ..util import span_idx2i
 class AbbrX:
     """
     *Strongly based on scispacy's AbbreviationDetector*.
-    Detects abbreviations which are acronyms or by using the algorithm in 
-    "A simple algorithm for identifying abbreviation definitions in biomedical 
+    Detects abbreviations which are acronyms or by using the algorithm in
+    "A simple algorithm for identifying abbreviation definitions in biomedical
     text.", (Schwartz & Hearst, 2003).
 
     This class sets the `._.abbrs` attribute on spaCy Doc.
@@ -84,9 +84,9 @@ def find_abbreviation(
     long_form_candidate: Span, short_form_candidate: Span
 ) -> Tuple[Span, Optional[Span]]:
     """
-    Implements an abbreviation detection algorithm which merges an 
-    acronym resolution algorithm with detection algorithm based on 
-    "A simple algorithm for identifying abbreviation definitions in 
+    Implements an abbreviation detection algorithm which merges an
+    acronym resolution algorithm with detection algorithm based on
+    "A simple algorithm for identifying abbreviation definitions in
     biomedical text.", (Schwartz & Hearst, 2003).
 
     Parameters
@@ -98,8 +98,8 @@ def find_abbreviation(
 
     Returns
     -------
-    A Tuple[Span, Union[Span, None]], representing the short form 
-    abbreviation and the span corresponding to the long form expansion, 
+    A Tuple[Span, Union[Span, None]], representing the short form
+    abbreviation and the span corresponding to the long form expansion,
     or None if a match was not found.
     """
     long_form = "".join([x.text_with_ws for x in long_form_candidate])

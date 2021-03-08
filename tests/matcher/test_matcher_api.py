@@ -317,11 +317,14 @@ def test_matcher_basic_check(en_vocab):
 
 def test_attr_pipeline_checks(en_vocab):
     doc1 = Doc(en_vocab, words=["Test"])
-    doc1.is_parsed = True
+    doc1[0].dep_ = "ROOT"
     doc2 = Doc(en_vocab, words=["Test"])
-    doc2.is_tagged = True
+    doc2[0].tag_ = "TAG"
+    doc2[0].pos_ = "X"
+    doc2[0].set_morph("Feat=Val")
+    doc2[0].lemma_ = "LEMMA"
     doc3 = Doc(en_vocab, words=["Test"])
-    # DEP requires is_parsed
+    # DEP requires DEP
     matcher = Matcher(en_vocab)
     matcher.add("TEST", [[{"DEP": "a"}]])
     matcher(doc1)
@@ -329,7 +332,10 @@ def test_attr_pipeline_checks(en_vocab):
         matcher(doc2)
     with pytest.raises(ValueError):
         matcher(doc3)
-    # TAG, POS, LEMMA require is_tagged
+    # errors can be suppressed if desired
+    matcher(doc2, allow_missing=True)
+    matcher(doc3, allow_missing=True)
+    # TAG, POS, LEMMA require those values
     for attr in ("TAG", "POS", "LEMMA"):
         matcher = Matcher(en_vocab)
         matcher.add("TEST", [[{attr: "a"}]])

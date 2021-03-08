@@ -26,7 +26,10 @@ class PhraseX:
 
 NP_PATTERNS = [
     [
-        {"POS": {"IN": ["ADJ", "ADV", "DET", "NUM", "PROPN"]}, "OP": "*",},
+        {
+            "POS": {"IN": ["ADJ", "ADV", "DET", "NUM", "PROPN"]},
+            "OP": "*",
+        },
         {"POS": {"IN": ["ADP", "CONJ", "CCONJ"]}, "OP": "?"},
         {
             "POS": {
@@ -34,7 +37,9 @@ NP_PATTERNS = [
             },
             "OP": "*",
         },
-        {"POS": {"IN": ["NOUN", "PROPN"]},},
+        {
+            "POS": {"IN": ["NOUN", "PROPN"]},
+        },
     ]
 ]
 

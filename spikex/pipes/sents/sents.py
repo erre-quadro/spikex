@@ -1,15 +1,19 @@
-from pathlib import Path
-
 import regex as re
+from spacy.lang.en import English
 from spacy.tokens import Doc
 
 from .fragment import Fragment
 from .nbmodel import NBModel
 
 
+@English.factory("sentx")
+def create_sentx(nlp, name):
+    return SentX()
+
+
 class SentX:
-    def __init__(self, model_path: Path = None):
-        self.model = NBModel.load(model_path)
+    def __init__(self):
+        self.model = NBModel.load()
 
     def __call__(self, doc: Doc):
         fragments = _get_fragments(doc)
