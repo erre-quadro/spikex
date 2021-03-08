@@ -1,6 +1,12 @@
+cyac
+cython
+ftfy
+gensim
 jsonschema
+python-igraph
 regex
+smart-open
 spacy>2.3
 typer
 wasabi
-gensim
+yarl

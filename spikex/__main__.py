@@ -7,7 +7,11 @@ if __name__ == "__main__":
     from . import cli
 
     commands = {
-        "profile": cli.profile,
+        "create-wikigraph": cli.create_wikigraph,
+        "package-wikigraph": cli.package_wikigraph,
+        "profile-matcher": cli.profile_matcher,
+        "profile-wikigraph-load": cli.profile_wikigraph_load,
+        "profile-wikigraph-exec": cli.profile_wikigraph_exec,
     }
 
     if len(sys.argv) == 1:

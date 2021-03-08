@@ -2,6 +2,8 @@ import pytest
 import spacy
 from spacy.util import get_lang_class
 
+from spikex.wikigraph import load
+
 
 def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", help="include slow tests")
@@ -14,6 +16,11 @@ def pytest_runtest_setup(item):
     for opt in ["slow"]:
         if opt in item.keywords and not getopt(opt):
             pytest.skip("need --%s option to run" % opt)
+
+
+@pytest.fixture(scope="session")
+def wikigraph():
+    return load("simplewiki_core")
 
 
 @pytest.fixture(scope="session")

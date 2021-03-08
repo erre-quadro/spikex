@@ -103,6 +103,7 @@ def lint(c):
     """
     Run all linting
     """
+    pass
 
 
 @task

@@ -10,3 +10,5 @@ recursive-exclude docs *
 recursive-exclude tests *
 recursive-exclude * *.py[co]
 recursive-exclude * __pycache__
+
+recursive-include spikex/templates *

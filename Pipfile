@@ -1,0 +1,42 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+alabaster = "*"
+autoflake = "*"
+bump2version = "*"
+coverage = "*"
+flake8 = "*"
+invoke = "*"
+isort = "*"
+memory-profiler = "*"
+mock = "*"
+profilehooks = "*"
+py-spy = "*"
+pylint = "*"
+pytest = "*"
+pytest-benchmark = "*"
+pytest-profiling = "*"
+Sphinx = "*"
+streamlit = "*"
+vulture = "*"
+wheel = "*"
+yapf = "*"
+
+[packages]
+cyac = "*"
+Cython = "*"
+ftfy = "*"
+jsonschema = "*"
+regex = "*"
+smart-open = "*"
+spacy = ">=2.2.2,<3.0"
+typer = "*"
+wasabi = "*"
+yarl = "*"
+python-igraph = "*"
+
+[pipenv]
+allow_prereleases = true
