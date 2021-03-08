@@ -1,6 +1,22 @@
 import pytest
 from spacy.errors import MatchPatternError
-from spacy.schemas import validate_token_pattern
+
+from spikex.defaults import spacy_version
+
+if spacy_version < 3:
+    from functools import partial
+
+    from spacy.util import get_json_validator, validate_json
+
+    from spikex.matcher._schemas import TOKEN_PATTERN_SCHEMA
+
+    validator = partial(
+        validate_json, validator=get_json_validator(TOKEN_PATTERN_SCHEMA)
+    )
+else:
+    from spacy.schemas import validate_token_pattern  # type: ignore
+
+    validator = validate_token_pattern
 
 from spikex.matcher import Matcher
 
@@ -15,16 +31,16 @@ TEST_PATTERNS = [
     ('[{"TEXT": "foo"}, {"LOWER": "bar"}]', 1, 1),
     ([1, 2, 3], 3, 1),
     # Bad patterns flagged outside of Matcher
-    ([{"_": {"foo": "bar", "baz": {"IN": "foo"}}}], 2, 0),  # prev: (1, 0)
+    ([{"_": {"foo": "bar", "baz": {"IN": "foo"}}}], 2 if spacy_version >= 3 else 1, 0),  # prev: (1, 0)
     # Bad patterns not flagged with minimal checks
     ([{"LENGTH": "2", "TEXT": 2}, {"LOWER": "test"}], 2, 0),
     (
         [{"LENGTH": {"IN": [1, 2, "3"]}}, {"POS": {"IN": "VERB"}}],
-        4,
+        4 if spacy_version >= 3 else 2,
         0,
     ),  # prev: (2, 0)
-    ([{"LENGTH": {"VALUE": 5}}], 2, 0),  # prev: (1, 0)
-    ([{"TEXT": {"VALUE": "foo"}}], 2, 0),  # prev: (1, 0)
+    ([{"LENGTH": {"VALUE": 5}}], 2 if spacy_version >= 3 else 1, 0),  # prev: (1, 0)
+    ([{"TEXT": {"VALUE": "foo"}}], 2 if spacy_version >= 3 else 1, 0),  # prev: (1, 0)
     ([{"IS_DIGIT": -1}], 1, 0),
     ([{"ORTH": -1}], 1, 0),
     # Good patterns
@@ -39,7 +55,7 @@ TEST_PATTERNS = [
         0,
         0,
     ),
-    ([{"orth": "foo"}], 0, 0),  # prev: xfail
+    ([{"orth": "foo"}], 0 if spacy_version >= 3 else 1, 0),  # prev: xfail
     ([{"IS_SENT_START": True}], 0, 0),
     ([{"SENT_START": True}], 0, 0),
 ]
@@ -56,7 +72,7 @@ def test_matcher_pattern_validation(en_vocab, pattern):
 
 @pytest.mark.parametrize("pattern,n_errors,_", TEST_PATTERNS)
 def test_pattern_validation(pattern, n_errors, _):
-    errors = validate_token_pattern(pattern)
+    errors = validator(pattern)
     assert len(errors) == n_errors
 
 

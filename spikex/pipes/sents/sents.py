@@ -1,14 +1,16 @@
 import regex as re
-from spacy.lang.en import English
 from spacy.tokens import Doc
 
+from ...defaults import spacy_version
 from .fragment import Fragment
 from .nbmodel import NBModel
 
+if spacy_version >= 3.0:
+    from spacy.lang.en import English
 
-@English.factory("sentx")
-def create_sentx(nlp, name):
-    return SentX()
+    @English.factory("sentx")
+    def create_sentx(nlp, name):
+        return SentX()
 
 
 class SentX:

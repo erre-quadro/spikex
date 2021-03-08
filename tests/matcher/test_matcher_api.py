@@ -3,6 +3,7 @@ from mock import Mock
 from spacy.tokens import Doc, Token
 
 from spikex.matcher import Matcher
+from spikex.defaults import spacy_version
 
 
 @pytest.fixture
@@ -321,7 +322,10 @@ def test_attr_pipeline_checks(en_vocab):
     doc2 = Doc(en_vocab, words=["Test"])
     doc2[0].tag_ = "TAG"
     doc2[0].pos_ = "X"
-    doc2[0].set_morph("Feat=Val")
+    if spacy_version >= 3:
+        doc2[0].set_morph("Feat=Val")
+    else:
+        doc1.is_parsed = True
     doc2[0].lemma_ = "LEMMA"
     doc3 = Doc(en_vocab, words=["Test"])
     # DEP requires DEP
@@ -339,6 +343,8 @@ def test_attr_pipeline_checks(en_vocab):
     for attr in ("TAG", "POS", "LEMMA"):
         matcher = Matcher(en_vocab)
         matcher.add("TEST", [[{attr: "a"}]])
+        if spacy_version < 3:
+            doc2.is_tagged = True
         matcher(doc2)
         with pytest.raises(ValueError):
             matcher(doc1)

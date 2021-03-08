@@ -1,17 +1,20 @@
 from typing import Union
 
 import regex as re
-from spacy.attrs import DEP, LEMMA, MORPH, POS, TAG, intify_attr
+from spacy.attrs import DEP, LEMMA, POS, TAG, intify_attr
 from spacy.errors import Errors, MatchPatternError
 from spacy.tokens import Doc, Span, Token
 
-try:
+from ..defaults import spacy_version
+
+if spacy_version < 3:
     from spacy.util import get_json_validator, validate_json
 
     from ._schemas import TOKEN_PATTERN_SCHEMA
-except ImportError:
+else:
     # Pattern validation changed as of spaCy 3.0
-    from spacy.schemas import validate_token_pattern
+    from spacy.attrs import MORPH  # type: ignore
+    from spacy.schemas import validate_token_pattern  # type: ignore
 
 from functools import partial
 
@@ -201,15 +204,20 @@ class Matcher(object):
             `doc[start:end]`.
         """
         if not allow_missing:
-            for attr, pipe in (
-                (TAG, "tagger"),
-                (POS, "morphologizer"),
-                (MORPH, "morphologizer"),
-                (LEMMA, "lemmatizer"),
-                (DEP, "parser"),
-            ):
-                if attr not in self._seen_attrs or doclike.has_annotation(
-                    attr
+            # legacy between spaCy versions
+            attr2pipe = {
+                TAG: ("tagger", "is_tagged"),
+                POS: ("morphologizer", "is_tagged"),
+                LEMMA: ("lemmatizer", "is_tagged"),
+                DEP: ("parser", "is_parsed"),
+            }
+            if spacy_version >= 3:
+                attr2pipe[MORPH] = ("morphologizer", None)
+            for attr, (pipe, flag) in attr2pipe.items():
+                if (
+                    attr not in self._seen_attrs
+                    or (spacy_version >= 3 and doclike.has_annotation(attr))
+                    or (spacy_version < 3 and getattr(doclike, flag))
                 ):
                     continue
                 raise ValueError(

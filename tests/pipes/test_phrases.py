@@ -37,6 +37,5 @@ def test_verb_phraser(nlp, text, vp_coords):
 
 def _check_phrases(phrases, coords):
     assert len(phrases) == len(coords)
-    print(phrases)
     for phrase, coords in zip(phrases, coords):
         assert (phrase.start, phrase.end) == coords
