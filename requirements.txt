@@ -3,3 +3,4 @@ regex
 spacy>2.3
 typer
 wasabi
+gensim

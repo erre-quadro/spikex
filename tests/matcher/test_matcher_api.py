@@ -2,8 +2,8 @@ import pytest
 from mock import Mock
 from spacy.tokens import Doc, Token
 
-from spikex.matcher import Matcher
 from spikex.defaults import spacy_version
+from spikex.matcher import Matcher
 
 
 @pytest.fixture

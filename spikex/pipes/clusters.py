@@ -3,6 +3,19 @@ from itertools import combinations
 
 import numpy as np
 from gensim.models import KeyedVectors
+from spacy.tokens import Doc
+
+
+class ClusterX:
+    def __init__(self, min_score):
+        Doc.set_extension("cluster_chunks", default=[])
+        self.min_score = min_score
+
+    def __call__(self, doc):
+        doc._.cluster_chunks = cluster_chunks(
+            list(doc.noun_chunks), min_score=self.min_score
+        )
+        return doc
 
 
 def cluster_chunks(chunks, stopwords=False, filter_pos=None, min_score=None):
@@ -12,7 +25,7 @@ def cluster_chunks(chunks, stopwords=False, filter_pos=None, min_score=None):
     model = KeyedVectors(chunks[0].vector.size)
     keys = list(key2vector.keys())
     weights = list(key2vector.values())
-    model.add_vectors(keys, weights)
+    model.add(keys, weights)
     clusters = cluster_balls_multi(model, keys, min_score=min_score)
     return [[chunks[key2index[i]] for i in cluster] for cluster in clusters]
 
@@ -26,7 +39,7 @@ def cluster_balls(model, root, max_size=None, min_score=None):
         return
     if min_score is None:
         mean = _get_neighs_mean_score(model, neighs)
-        min_score = mean - 0.10
+        min_score = mean - 0.05
     cut_off = 0.5
     clusters = []
     root_cluster = {root}

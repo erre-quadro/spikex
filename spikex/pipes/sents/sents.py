@@ -1,16 +1,8 @@
 import regex as re
 from spacy.tokens import Doc
 
-from ...defaults import spacy_version
 from .fragment import Fragment
 from .nbmodel import NBModel
-
-if spacy_version >= 3.0:
-    from spacy.lang.en import English
-
-    @English.factory("sentx")
-    def create_sentx(nlp, name):
-        return SentX()
 
 
 class SentX:
@@ -35,8 +27,8 @@ def _sent_start_token_ids(fragments):
     for frag in fragments:
         if is_next_start:
             start_token_ids.append(frag.first_token.i)
-            continue
-
+            # continue
+        print(frag.tokens, frag.label, frag.prediction, frag.is_sent_end)
         is_next_start = (
             frag.label > thresh or frag.prediction > thresh or frag.is_sent_end
         )
@@ -48,7 +40,9 @@ SAFE_ACRONYMS = re.compile(
 )
 SAFE_ABBRS = re.compile(r"(?:^[a-zA-Z]{1,3}\.)")
 SPECIAL_SENT_STARTERS = re.compile(
-    r"((?:[a-zèéòàìù]+|[A-ZÈÉÒÙÀÌ]{3,}|[0-9]\s*\))(?:\s*\))?)?\s*((?:The|This|That|Those|These|Who|When|What|Which|Where|Whose)\s*(?:[a-z]|[A-Z][a-zèéòàìù]+\s+[a-z])?)"
+    r"((?:[a-zèéòàìù]+|[A-ZÈÉÒÙÀÌ]{3,}|[0-9]\s*\))(?:\s*\))?)?\s*"
+    r"((?:The|This|That|Those|These|Who|When|What|Which|Where|Whose)\s*"
+    r"(?:[a-z]|[A-Z][a-zèéòàìù]+\s+[a-z])?)"
 )
 
 
@@ -63,7 +57,12 @@ def _get_fragments(doc):
             continue
         prev_token = curr_tokens[-2]
         split_at_last = SPECIAL_SENT_STARTERS.search(token.text) and (
-            prev_token.pos_ in ("NOUN", "PROPN", "ADJ", "ADV")
+            (
+                prev_token.pos_
+                and prev_token.pos_ in ("NOUN", "PROPN", "ADJ", "ADV")
+                or prev_token.tag_
+                and prev_token.tag_ in ("NN", "NNS", "NNP", "NNPS", "JJ", "RB")
+            )
             or "\n" in prev_token.text
         )
         if not _is_sentence_boundary(token, prev_token) and not split_at_last:

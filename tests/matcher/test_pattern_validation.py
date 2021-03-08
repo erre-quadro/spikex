@@ -31,7 +31,11 @@ TEST_PATTERNS = [
     ('[{"TEXT": "foo"}, {"LOWER": "bar"}]', 1, 1),
     ([1, 2, 3], 3, 1),
     # Bad patterns flagged outside of Matcher
-    ([{"_": {"foo": "bar", "baz": {"IN": "foo"}}}], 2 if spacy_version >= 3 else 1, 0),  # prev: (1, 0)
+    (
+        [{"_": {"foo": "bar", "baz": {"IN": "foo"}}}],
+        2 if spacy_version >= 3 else 1,
+        0,
+    ),  # prev: (1, 0)
     # Bad patterns not flagged with minimal checks
     ([{"LENGTH": "2", "TEXT": 2}, {"LOWER": "test"}], 2, 0),
     (
@@ -39,8 +43,16 @@ TEST_PATTERNS = [
         4 if spacy_version >= 3 else 2,
         0,
     ),  # prev: (2, 0)
-    ([{"LENGTH": {"VALUE": 5}}], 2 if spacy_version >= 3 else 1, 0),  # prev: (1, 0)
-    ([{"TEXT": {"VALUE": "foo"}}], 2 if spacy_version >= 3 else 1, 0),  # prev: (1, 0)
+    (
+        [{"LENGTH": {"VALUE": 5}}],
+        2 if spacy_version >= 3 else 1,
+        0,
+    ),  # prev: (1, 0)
+    (
+        [{"TEXT": {"VALUE": "foo"}}],
+        2 if spacy_version >= 3 else 1,
+        0,
+    ),  # prev: (1, 0)
     ([{"IS_DIGIT": -1}], 1, 0),
     ([{"ORTH": -1}], 1, 0),
     # Good patterns

@@ -18,7 +18,7 @@ def pytest_runtest_setup(item):
 
 @pytest.fixture(scope="session")
 def nlp():
-    return spacy.load("en_core_web_md")
+    return spacy.load("en_core_web_sm")
 
 
 @pytest.fixture(scope="session")
