@@ -71,8 +71,7 @@ def test_merge_abbrs_labelings(nlp, text, label, patterns):
     ),
 )
 def test_keep_longest_only(nlp, text, label, patterns):
-    labeler = LabelX(nlp.vocab, only_longest=True)
-    labeler.add(label, patterns)
+    labeler = LabelX(nlp.vocab, [(label, patterns)], only_longest=True)
     doc = labeler(nlp(text))
     assert len(doc._.labelings) == 1
     assert doc._.labelings[0].label_ == label

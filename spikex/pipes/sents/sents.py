@@ -28,7 +28,6 @@ def _sent_start_token_ids(fragments):
         if is_next_start:
             start_token_ids.append(frag.first_token.i)
             # continue
-        print(frag.tokens, frag.label, frag.prediction, frag.is_sent_end)
         is_next_start = (
             frag.label > thresh or frag.prediction > thresh or frag.is_sent_end
         )

@@ -4,11 +4,17 @@ from ..matcher import Matcher
 
 
 class LabelX:
-    def __init__(self, vocab, validate=None, only_longest=None):
-        self._only_longest = only_longest
-        self._matcher = Matcher(vocab, validate)
-        Token.set_extension("labels", default=[], force=True)
+    def __init__(
+        self, vocab, labelings=None, validate=None, only_longest=None
+    ):
         Doc.set_extension("labelings", default=[], force=True)
+        Token.set_extension("labels", default=[], force=True)
+        self._matcher = Matcher(vocab, validate)
+        self._only_longest = only_longest
+        if not labelings or labelings is None:
+            return
+        for label, patterns in labelings:
+            self.add(label, patterns)
 
     def add(self, label, patterns, on_match=None):
         """

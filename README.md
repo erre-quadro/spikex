@@ -3,25 +3,29 @@
 SpikeX is a collection of pipes ready to be plugged in a spaCy pipeline.
 It aims to help in building knowledge extraction tools with almost-zero effort.
 
-[![Travis Build Status](<https://img.shields.io/travis/erre-quadro/spikex/master.svg?style=flat-square&logo=travis-ci&logoColor=white&label=build+(3.x)>)](https://travis-ci.org/erre-quadro/spikex)
+[![Build Status](https://img.shields.io/azure-devops/build/erre-quadro/spikex/3/master?label=build&logo=azure-pipelines&style=flat-square)](https://dev.azure.com/erre-quadro/spikex/_build/latest?definitionId=3&branchName=master)
 [![pypi Version](https://img.shields.io/pypi/v/spikex.svg?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/spikex/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/ambv/black)
 
-## Features
+## Pipes
 
-<<<<<<< HEAD
-- ** **NEW** ** Wikipedia graph for entities and categories;
-- ** **NEW** ** Knowledge extraction (KEX) pipes;
-=======
->>>>>>> master
-- **Matcher** based on [spaCy's one](https://github.com/explosion/spaCy/blob/master/spacy/matcher/matcher.pyx) but boosted;
-- **Abbreviations** and **acronyms** detector based on [scispacy's one](https://github.com/allenai/scispacy/blob/master/scispacy/abbreviation.py) with improvements;
-- **Sentence** splitter based on [Splitta](https://github.com/dgillick/splitta) modernized;
+- **WikiPageX** links Wikipedia pages to chunks in text
+- **ClusterX** picks noun chunks in a text and clusters them based on a revisiting of the [Ball Mapper](https://arxiv.org/abs/1901.07410) algorithm, Radial Ball Mapper
+- **AbbrX** detects abbreviations and acronyms, linking them to their long form. It is based on [scispacy](https://github.com/allenai/scispacy/blob/master/scispacy/abbreviation.py)'s one with improvements
+- **LabelX** takes labelings of pattern matching expressions and catches them in a text, solving overlappings, abbreviations and acronyms
+- **PhraseX** creates a `Doc`'s underscore extension based on a custom attribute name and phrase patterns. Examples are **NounPhraseX** and **VerbPhraseX**, which extract noun phrases and verb phrases, respectively
+- **SentX** detects sentences in a text, based on [Splitta](https://github.com/dgillick/splitta) with refinements
+
+## Tools
+
+- **WikiGraph** with pages as leaves linked to categories as nodes
+- **Matcher** that inherits its interface from the [spaCy](https://github.com/explosion/spaCy/blob/master/spacy/matcher/matcher.pyx)'s one, but built using an engine made of RegEx which boosts its performance
 
 ## Install SpikeX
 
 Some requirements are inherited from spaCy:
 
+- **spaCy version**: 2.3+
 - **Operating system**: macOS / OS X · Linux · Windows (Cygwin, MinGW, Visual
   Studio)
 - **Python version**: Python 3.6+ (only 64 bit)
@@ -39,11 +43,145 @@ A virtual environment is always recommended, in order to avoid modifying system 
 
 ## Usage
 
-SpikeX needs a spaCy model to be installed in order to work. Follow spaCy official instructions [here](https://spacy.io/usage/models#download).
+SpikeX pipes work with spaCy, hence a model its needed to be installed. Follow official instructions [here](https://spacy.io/usage/models#download). The brand new spaCy 3.0 is supported!
 
+
+### WikiPageX
+
+The `WikiPageX` pipe uses a `WikiGraph` in order to find chunks in a text that match Wikipedia page titles.
+
+``` python
+from spacy import load as spacy_load
+from spikex.wikigraph import load as wg_load
+from spikex.pipes import WikiPageX
+
+nlp = spacy_load("en_core_web_sm")
+doc = nlp("An apple a day keeps the doctor away")
+wg = wg_load("simplewiki_core")
+wpx = WikiPagex(wg)
+doc = wpx(doc)
+for span in doc._.wiki_spans:
+  print(span._.wiki_pages)
+
+>>> [(211331, 'An')]
+>>> [(31340, 'Apple'), (52207, 'Apple_(disambiguation)'), (53570, 'Apple_(company)'), (235117, 'Apple_(tree)')]
+>>> [(31322, 'A'), (135354, 'A_(musical_note)'), (206266, 'A_(New_York_City_Subway_service)'), (211236, 'A_(disambiguation)'), (212629, 'A_(Cyrillic)')]
+>>> [(32414, 'Day')]
+>>> [(248450, 'The_Doctor'), (248452, 'The_Doctor_(Doctor_Who)'), (248453, 'The_Doctor_(Star_Trek)'), (248519, 'The_Doctor_(disambiguation)')]
+>>> [(206763, 'The')]
+>>> [(73638, 'Doctor_(Doctor_Who)'), (231571, 'Doctor_(Star_Trek)'), (232311, 'Doctor'), (250762, 'Doctor_(title)'), (262817, 'Doctor_(disambiguation)')]
+``` 
+
+### ClusterX
+
+The `ClusterX` pipe takes noun chunks in a text and clusters them using a Radial Ball Mapper algorithm.
+
+``` python
+from spacy import load as spacy_load
+from spikex.pipes import ClusterX
+
+nlp = spacy_load("en_core_web_sm")
+doc = nlp("Grab this juicy orange and watch a dog chasing a cat.")
+clusterx = ClusterX(min_score=0.65)
+doc = clusterx(doc)
+for cluster in doc._.cluster_chunks:
+  print(cluster)
+
+>>> [this juicy orange]
+>>> [a cat, a dog]
+```
+
+### AbbrX
+
+The **AbbrX** pipe finds abbreviations and acronyms in the text, linking short and long forms together:
+
+```python
+from spacy import load as spacy_load
+from spikex.pipes import AbbrX
+
+nlp = spacy_load("en_core_web_sm")
+doc = nlp("a little snippet with an abbreviation (abbrs)")
+abbrx = AbbrX(nlp.vocab)
+doc = abbrx(doc)
+for abbr in doc._.abbrs:
+  print(abbr, "->", abbr._.long_form)
+
+>>> abbr -> abbreviation
+```
+
+### LabelX
+
+The `LabelX` pipe matches and labels patterns in text, solving overlappings, abbreviations and acronyms.
+
+```python
+from spacy import load as spacy_load
+from spikex.pipes import LabelX
+
+nlp = spacy_load("en_core_web_sm")
+doc = nlp("looking for a computer system engineer")
+patterns = [
+  [{"LOWER": "computer"}, {"LOWER": "system"}],
+  [{"LOWER": "system"}, {"LOWER": "engineer"}],
+]
+labelx = LabelX(nlp.vocab, ("TEST", patterns), validate=True, only_longest=True)
+doc = labelx(doc)
+for labeling in doc._.labelings:
+  print(labeling, f"[{labeling.label_}]")
+
+>>> computer system engineer [TEST]
+```
+
+### PhraseX
+
+The `PhraseX` pipe creates a custom `Doc`'s underscore extension which fulfills with matches from phrase patterns.
+
+```python
+from spacy import load as spacy_load
+from spikex.pipes import PhraseX
+
+nlp = spacy_load("en_core_web_sm")
+doc = nlp("I have Melrose and McIntosh apples, or Williams pears")
+patterns = [
+  [{"LOWER": "mcintosh"}],
+  [{"LOWER": "melrose"}],
+]
+phrasex = PhraseX(nlp.vocab, "apples", patterns)
+doc = phrasex(doc)
+for apple in doc._.apples:
+  print(apple)
+
+>>> Melrose
+>>> McIntosh
+```
+### SentX
+
+The **SentX** pipe splits sentences in a text. It modifies tokens' *is_sent_start* attribute, so it's mandatory to add it before *parser* pipe in the spaCy pipeline:
+
+```python
+from spacy import load as spacy_load
+from spikex.pipes import SentX
+from spikex.defaults import spacy_version
+
+if spacy_version >= 3:
+  from spacy.language import Language
+
+    @Language.factory("sentx")
+    def create_sentx(nlp, name):
+        return SentX()
+
+nlp = spacy_load("en_core_web_sm")
+sentx_pipe = SentX() if spacy_version < 3 else "sentx"
+nlp.add_pipe(sentx_pipe, before="parser")
+doc = nlp("A little sentence. Followed by another one.")
+for sent in doc.sents:
+  print(sent)
+
+>>> A little sentence.
+>>> Followed by another one.
+```
 ### WikiGraph
 
-All KEX pipes has a WikiGraph at their core, which is built starting from some key components of Wikipedia: pages, categories and relations between them. A WikiGraph needs to be created first, before to be used:
+A `WikiGraph` is built starting from some key components of Wikipedia: *pages*, *categories* and *relations* between them. A WikiGraph needs to be created before to be used (of course):
 
 ```bash
 python -m spikex create-wikigraph \
@@ -51,7 +189,6 @@ python -m spikex create-wikigraph \
  --version <DUMP-VERSION, default: latest> \
  --output-path <YOUR-OUTPUT-PATH> \
  --dumps-path <DUMPS-BACKUP-PATH> \
- --only-core
 ```
 
 Then it needs to be packed and installed:
@@ -66,96 +203,13 @@ Follow the instructions at the end of the packing process and install the distri
 Now your are ready to use your WikiGraph as you wish:
 
 ```python
-from spikex.wikigraph import WikiGraph
+from spikex.wikigraph import load as wg_load
 
-wg = WikiGraph.load("enwiki_core")
+wg = wg_load("enwiki_core")
 ```
-
-### KEX - CatchX
-
-The **CatchX** pipe uses a WikiGraph in order to find all Wikipedia pages which could relate to chunks in the text.
-
-```python
-import spacy
-from spikex.wikigraph import WikiGraph
-from spikex.kex import CatchX
-
-nlp = spacy.load("en_core_web_sm")
-wg = WikiGraph.load("enwiki_core")
-nlp.add_pipe(CatchX(graph=wg))
-doc = nlp("a little snippet of text")
-doc._.catches
-```
-
-### KEX - IdentX
-
-The **IdentX** pipe inherits from CatchX all catches found and selects which Wikipedia page fits better for a specific chunk in the text.
-
-```python
-import spacy
-from spikex.wikigraph import WikiGraph
-from spikex.kex import IdentX
-
-nlp = spacy.load("en_core_web_sm")
-wg = WikiGraph.load("enwiki_core")
-nlp.add_pipe(IdentX(graph=wg))
-doc = nlp("a little snippet of text")
-doc._.idents
-```
-
-### KEX - TopicX
-
-The **TopicX** pipe inherits from IdentX all idents found and uses them in order to retrieve all topics treated in the text.
-
-```python
-import spacy
-from spikex.wikigraph import WikiGraph
-from spikex.kex import TopicX
-
-nlp = spacy.load("en_core_web_sm")
-wg = WikiGraph.load("enwiki_core")
-nlp.add_pipe(TopicX(graph=wg))
-doc = nlp("a little snippet of text")
-doc._.catches
-```
-
-### KEX - LinkageX
-
-Soon
-
 ### Matcher
 
-The **Matcher** is identical to the spaCy's one, but slightly faster, so follow its usage instructions [here](https://spacy.io/usage/rule-based-matching#matcher).
-
-### AbbrX
-
-The **AbbrX** pipe finds abbreviations and acronyms in the text, linking short and long forms together:
-
-```python
-import spacy
-from spikex.pipes import AbbrX
-
-nlp = spacy.load("en_core_web_sm")
-abbrx = AbbrX(nlp.vocab)
-nlp.add_pipe(abbrx)
-doc = nlp("a little snippet with abbreviations (abbrs)")
-doc._.abbrs
-```
-
-### SentX
-
-The **SentX** pipe splits all text in sentences. It is strongly based on [Splitta](https://github.com/dgillick/splitta). It modifies tokens' *is_sent_start* attribute, so it's mandatory to add it before the parser in the spaCy pipeline:
-
-```python
-import spacy
-from spikex.pipes import SentX
-
-nlp = spacy.load("en_core_web_sm")
-sentx = SentX()
-nlp.add_pipe(sentx, before="parser")
-doc = nlp("A little sentence. Followed by another one.")
-doc.sents
-```
+The **Matcher** is identical to the spaCy's one, but faster when it comes to handle many patterns at once (order of thousands), so follow official usage instructions [here](https://spacy.io/usage/rule-based-matching#matcher).
 
 ## That's all folks
 Have fun!
