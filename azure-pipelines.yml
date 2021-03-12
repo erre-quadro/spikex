@@ -79,10 +79,10 @@ jobs:
   - script: python -m pip install -U pip setuptools
     displayName: 'Update pip'
 
-  - script: python -m pip install cython && python -m spikex download-wikigraph simplewiki_core
+  - script: python -m pip install cython
     displayName: 'Install prerequirements'
 
-  - script: pip install -r requirements-dev.txt -r requirements.txt
+  - script: pip install -r requirements-dev.txt -r requirements.txt && python -m spikex download-wikigraph simplewiki_core
     displayName: 'Install dependencies'
 
   - script: invoke test
