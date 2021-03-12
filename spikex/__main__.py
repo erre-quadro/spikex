@@ -1,4 +1,4 @@
-if __name__ == "__main__":
+def main():
     import sys
 
     import typer
@@ -8,6 +8,7 @@ if __name__ == "__main__":
 
     commands = {
         "create-wikigraph": cli.create_wikigraph,
+        "download-wikigraph": cli.download_wikigraph,
         "package-wikigraph": cli.package_wikigraph,
         "profile-matcher": cli.profile_matcher,
         "profile-wikigraph-load": cli.profile_wikigraph_load,
@@ -23,3 +24,7 @@ if __name__ == "__main__":
     else:
         available = "Available: {}".format(", ".join(commands))
         msg.fail("Unknown command: {}".format(command), available, exits=1)
+
+
+if __name__ == "__main__":
+    main()

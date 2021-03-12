@@ -43,7 +43,85 @@ A virtual environment is always recommended, in order to avoid modifying system 
 
 ## Usage
 
+### Prerequirements
+
 SpikeX pipes work with spaCy, hence a model its needed to be installed. Follow official instructions [here](https://spacy.io/usage/models#download). The brand new spaCy 3.0 is supported!
+
+### WikiGraph
+
+A `WikiGraph` is built starting from some key components of Wikipedia: *pages*, *categories* and *relations* between them. 
+
+#### Auto
+
+Creating a `WikiGraph` can take time, depending on how large is its Wikipedia dump. For this reason, we provide wikigraphs ready to be used:
+
+| Date | WikiGraph | Lang | |
+| --- | --- | --- | --- |
+| 2021-02-01 | enwiki_core | EN | [![][dl]][enwiki_core_20210210] | 
+| 2021-02-01 | simplewiki_core | EN | [![][dl]][simplewiki_core_20210210] |
+| More coming... |
+
+[enwiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Documents/spikex/wikigraphs/enwiki_core-20210201.tar.gz
+[simplewiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Documents/spikex/wikigraphs/simplewiki_core-20210201.tar.gz
+
+[dl]: http://i.imgur.com/gQvPgr0.png
+
+SpikeX provides a command to shortcut downloading and installing a `WikiGraph`:
+```bash
+spikex download-wikigraph simplewiki_core
+```
+
+#### Manual
+
+A `WikiGraph` can be created from command line, specifying which Wikipedia dump to take and where to save it:
+
+```bash
+spikex create-wikigraph \
+ --wiki <WIKI-NAME, default: en> \
+ --version <DUMP-VERSION, default: latest> \
+ --output-path <YOUR-OUTPUT-PATH> \
+ --dumps-path <DUMPS-BACKUP-PATH> \
+```
+
+Then it needs to be packed and installed:
+
+```bash
+spikex package-wikigraph \
+ --input-path <WIKIGRAPH-RAW-PATH> \
+ --output-path <YOUR-OUTPUT-PATH>
+```
+
+Follow the instructions at the end of the packing process and install the distribution package in your virtual environment.
+Now your are ready to use your WikiGraph as you wish:
+
+```python
+from spikex.wikigraph import load as wg_load
+
+wg = wg_load("enwiki_core")
+nlp_vx = wg.find_vertex("Natural_language_processing")
+print(nlp["title"])
+
+>>> Natural_language_processing
+```
+### Matcher
+
+The **Matcher** is identical to the spaCy's one, but faster when it comes to handle many patterns at once (order of thousands), so follow official usage instructions [here](https://spacy.io/usage/rule-based-matching#matcher).
+
+A trivial example:
+```python
+from spikex.matcher import Matcher
+from spacy import load as spacy_load
+
+nlp = spacy_load("en_core_web_sm")
+matcher = Matcher(nlp.vocab)
+matcher.add("TEST", [[{"LOWER": "nlp"}]])
+doc = nlp("I love NLP")
+for _, s, e in matcher(doc):
+  print(doc[s: e])
+
+
+>>> NLP
+```
 
 
 ### WikiPageX
@@ -179,37 +257,6 @@ for sent in doc.sents:
 >>> A little sentence.
 >>> Followed by another one.
 ```
-### WikiGraph
-
-A `WikiGraph` is built starting from some key components of Wikipedia: *pages*, *categories* and *relations* between them. A WikiGraph needs to be created before to be used (of course):
-
-```bash
-python -m spikex create-wikigraph \
- --wiki <WIKI-NAME, default: en> \
- --version <DUMP-VERSION, default: latest> \
- --output-path <YOUR-OUTPUT-PATH> \
- --dumps-path <DUMPS-BACKUP-PATH> \
-```
-
-Then it needs to be packed and installed:
-
-```bash
-python -m spikex package-wikigraph \
- --input-path <WIKIGRAPH-RAW-PATH> \
- --output-path <YOUR-OUTPUT-PATH>
-```
-
-Follow the instructions at the end of the packing process and install the distribution package in your virtual environment.
-Now your are ready to use your WikiGraph as you wish:
-
-```python
-from spikex.wikigraph import load as wg_load
-
-wg = wg_load("enwiki_core")
-```
-### Matcher
-
-The **Matcher** is identical to the spaCy's one, but faster when it comes to handle many patterns at once (order of thousands), so follow official usage instructions [here](https://spacy.io/usage/rule-based-matching#matcher).
 
 ## That's all folks
 Have fun!
