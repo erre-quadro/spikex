@@ -31,15 +31,20 @@ Some requirements are inherited from spaCy:
 - **Python version**: Python 3.6+ (only 64 bit)
 - **Package managers**: [pip](https://pypi.org/project/spikex/)
 
+Some dependencies use **Cython** and it needs to be installed before SpikeX:
+
+```bash
+pip install cython
+```
+
+Remember that a virtual environment is always recommended, in order to avoid modifying system state.
 ### pip
 
-Installing SpikeX via pip is a one line command:
+At this point, installing SpikeX via pip is a one line command:
 
 ```bash
 pip install spikex
 ```
-
-A virtual environment is always recommended, in order to avoid modifying system state.
 
 ## Usage
 
@@ -178,7 +183,7 @@ from spacy import load as spacy_load
 from spikex.pipes import AbbrX
 
 nlp = spacy_load("en_core_web_sm")
-doc = nlp("a little snippet with an abbreviation (abbrs)")
+doc = nlp("a little snippet with an abbreviation (abbr)")
 abbrx = AbbrX(nlp.vocab)
 doc = abbrx(doc)
 for abbr in doc._.abbrs:

@@ -1,5 +1,4 @@
-cython
-cyac # this MUST be installed after cython
+cyac
 ftfy
 gensim
 jsonschema
