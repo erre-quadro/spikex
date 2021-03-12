@@ -16,8 +16,6 @@ def download_wikigraph(wg_name):
             exits=1,
         )
     wg_tar = f"{wg_name}.tar.gz"
-    run_command(
-        f"wget {WIKIGRAPHS_TABLE[wg_name]} -O {wg_tar} &&"
-        f"{sys.executable} -m pip install --no-deps --force-reinstall --no-cache {wg_tar} &&"
-        f"rm {wg_tar}"
-    )
+    run_command(f"wget {WIKIGRAPHS_TABLE[wg_name]} -O {wg_tar}")
+    run_command(f"{sys.executable} -m pip install --no-deps --force-reinstall --no-cache {wg_tar}")
+    run_command(f"rm {wg_tar}")
