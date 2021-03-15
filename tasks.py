@@ -14,27 +14,19 @@ ROOT_DIR = Path(__file__).parent
 SETUP_FILE = ROOT_DIR.joinpath("setup.py")
 TEST_DIR = ROOT_DIR.joinpath("tests")
 SOURCE_DIR = ROOT_DIR.joinpath("spikex")
-# EXAMPLES_DIR = ROOT_DIR.joinpath("examples")
-TOX_DIR = ROOT_DIR.joinpath(".tox")
-COVERAGE_FILE = ROOT_DIR.joinpath(".coverage")
-COVERAGE_DIR = ROOT_DIR.joinpath("htmlcov")
-COVERAGE_REPORT = COVERAGE_DIR.joinpath("index.html")
-DOCS_DIR = ROOT_DIR.joinpath("docs")
-DOCS_BUILD_DIR = DOCS_DIR.joinpath("_build")
-DOCS_INDEX = DOCS_BUILD_DIR.joinpath("index.html")
 PYTHON_DIRS = [str(d) for d in (SOURCE_DIR, TEST_DIR)]
 
 
-def _delete_file(file):
-    try:
-        file.unlink(missing_ok=True)
-    except TypeError:
-        # missing_ok argument only 
-        # added since python 3.8
-        try:
-            file.unlink()
-        except FileNotFoundError:
-            pass
+# def _delete_file(file):
+#     try:
+#         file.unlink(missing_ok=True)
+#     except TypeError:
+#         # missing_ok argument only 
+#         # added since python 3.8
+#         try:
+#             file.unlink()
+#         except FileNotFoundError:
+#             pass
 
 
 @task(help={'check': "Checks if source is formatted without applying changes"})
@@ -87,7 +79,7 @@ def lint_flake8(c):
     """
     Lint code with flake8
     """
-    c.run("flake8 {}".format(" ".join(PYTHON_DIRS)))
+    c.run("flake8 {} --count --select=E901,E999,F821,F822,F823 --show-source --statistics".format(" ".join(PYTHON_DIRS)))
 
 
 @task
@@ -98,7 +90,7 @@ def lint_pylint(c):
     c.run("pylint {}".format(" ".join(PYTHON_DIRS)))
 
 
-@task(lint_flake8, lint_pylint)
+@task(lint_flake8) # , lint_pylint)
 def lint(c):
     """
     Run all linting
@@ -113,37 +105,6 @@ def test(c):
     """
     pty = platform.system() == 'Linux'
     c.run("pytest", pty=pty)
-
-
-@task(help={'publish': "Publish the result via coveralls"})
-def coverage(c, publish=False):
-    """
-    Create coverage report
-    """
-    c.run("coverage run --source {} -m pytest".format(SOURCE_DIR))
-    c.run("coverage report")
-    if publish:
-        # Publish the results via coveralls
-        c.run("coveralls")
-    else:
-        # Build a local report
-        c.run("coverage html")
-
-
-@task
-def docs(c):
-    """
-    Generate documentation
-    """
-    c.run("sphinx-build -b html {} {}".format(DOCS_DIR, DOCS_BUILD_DIR))
-
-
-@task
-def clean_docs(c):
-    """
-    Clean up files from documentation builds
-    """
-    c.run("rm -fr {}".format(DOCS_BUILD_DIR))
 
 
 @task
@@ -169,17 +130,7 @@ def clean_python(c):
     c.run("find . -name '__pycache__' -exec rm -fr {} +")
 
 
-@task
-def clean_tests(c):
-    """
-    Clean up files from testing
-    """
-    _delete_file(COVERAGE_FILE)
-    shutil.rmtree(TOX_DIR, ignore_errors=True)
-    shutil.rmtree(COVERAGE_DIR, ignore_errors=True)
-
-
-@task(pre=[clean_build, clean_python, clean_tests, clean_docs])
+@task(pre=[clean_build, clean_python])
 def clean(c):
     """
     Runs all clean sub-tasks

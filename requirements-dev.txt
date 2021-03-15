@@ -9,7 +9,6 @@ isort
 memory-profiler
 mock
 py-spy
-pylint
 pytest
 pytest-benchmark
 pytest-profiling

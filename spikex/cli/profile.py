@@ -3,16 +3,16 @@ from cProfile import Profile
 from pathlib import Path
 
 import memory_profiler as mp
-import spacy
+from spacy import load as spacy_load
 from srsly import read_jsonl
 
 from ..matcher import Matcher
-from ..wikigraph import load
+from ..wikigraph import load as wg_load
 
 
 def profile_matcher(patterns_path: str, memory: bool = None):
     def func():
-        nlp = spacy.load("en_core_web_sm")
+        nlp = spacy_load("en_core_web_sm")
         path = Path("resources") / "sample.txt"
         doc = nlp(path.read_text())
         matcher = Matcher(doc.vocab)
@@ -28,13 +28,13 @@ def profile_matcher(patterns_path: str, memory: bool = None):
 
 def profile_wikigraph_load(graph_name: str, memory: bool = None):
     def func():
-        _ = load(graph_name)
+        _ = wg_load(graph_name)
 
     _profile(func, memory)
 
 
 def profile_wikigraph_exec(graph_name: str, memory: bool = None):
-    wg = load(graph_name)
+    wg = wg_load(graph_name)
     text = """
     Hong Kong (CNN) China's top military commander in Hong Kong has emphasized the role of the People's Liberation Army (PLA) in upholding "national sovereignty" in the city a day ahead of expected anti-government protests.
 

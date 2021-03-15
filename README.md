@@ -60,14 +60,16 @@ A `WikiGraph` is built starting from some key components of Wikipedia: *pages*, 
 
 Creating a `WikiGraph` can take time, depending on how large is its Wikipedia dump. For this reason, we provide wikigraphs ready to be used:
 
-| Date | WikiGraph | Lang | |
-| --- | --- | --- | --- |
-| 2021-02-01 | enwiki_core | EN | [![][dl]][enwiki_core_20210210] | 
-| 2021-02-01 | simplewiki_core | EN | [![][dl]][simplewiki_core_20210210] |
+| Date | WikiGraph | Lang | Size (compressed) | Size (memory) | |
+| --- | --- | --- | --- | --- | --- |
+| 2021-02-01 | enwiki_core | EN | 1.5GB | 9.5GB | [![][dl]][enwiki_core_20210210] | 
+| 2021-02-01 | simplewiki_core | EN | 23MB | 183MB | [![][dl]][simplewiki_core_20210210] |
+| 2021-02-01 | itwiki_core | IT | 244MB | 1.7GB | [![][dl]][itwiki_core_20210210] |
 | More coming... |
 
-[enwiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Documents/spikex/wikigraphs/enwiki_core-20210201.tar.gz
-[simplewiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Documents/spikex/wikigraphs/simplewiki_core-20210201.tar.gz
+[enwiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/ESedYiVvufpCtImuOlFXm6MB_5YyfKQnZIvDinnYbL-NmA?Download=1
+[simplewiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EQhheXcD9KtGpXyoZ9a2zOEBmGIvZXuyFoV1KoYOzgsjLw?Download=1
+[itwiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EVBnV0JaBNlFpmNg91hT458BfFjY_7MW2kqIvRCkhdpWVQ?Download=1
 
 [dl]: http://i.imgur.com/gQvPgr0.png
 
