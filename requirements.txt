@@ -2,6 +2,7 @@ cyac
 ftfy
 gensim
 jsonschema
+memory-profiler
 python-igraph
 regex
 smart-open

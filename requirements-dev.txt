@@ -6,7 +6,6 @@ coverage
 flake8
 invoke
 isort
-memory-profiler
 mock
 py-spy
 pytest

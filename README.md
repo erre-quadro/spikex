@@ -84,18 +84,18 @@ A `WikiGraph` can be created from command line, specifying which Wikipedia dump 
 
 ```bash
 spikex create-wikigraph \
- --wiki <WIKI-NAME, default: en> \
- --version <DUMP-VERSION, default: latest> \
- --output-path <YOUR-OUTPUT-PATH> \
- --dumps-path <DUMPS-BACKUP-PATH> \
+  <YOUR-OUTPUT-PATH> \
+  --wiki <WIKI-NAME, default: en> \
+  --version <DUMP-VERSION, default: latest> \
+  --dumps-path <DUMPS-BACKUP-PATH> \
 ```
 
 Then it needs to be packed and installed:
 
 ```bash
 spikex package-wikigraph \
- --input-path <WIKIGRAPH-RAW-PATH> \
- --output-path <YOUR-OUTPUT-PATH>
+  <WIKIGRAPH-RAW-PATH> \
+  <YOUR-OUTPUT-PATH>
 ```
 
 Follow the instructions at the end of the packing process and install the distribution package in your virtual environment.
