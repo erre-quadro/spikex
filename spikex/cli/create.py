@@ -9,14 +9,38 @@ from ..wikigraph import WikiGraph
 
 
 def create_wikigraph(
+    output_path: Path,
     wiki="en",
     version="latest",
-    output_path: Path = None,
     dumps_path: Path = None,
     max_workers: int = None,
     silent: bool = None,
     force: bool = None,
 ):
+    """
+    Create a `WikiGraph` from a specific dump.
+
+    It can then be used by directly loading it, or
+    it can be packaged with the `package-wikigraph` command.
+
+    Parameters
+    ----------
+    output_path : Path
+        Path in which to store the `WikiGraph`.
+    wiki : str, optional
+        Wikipedia dump type to use, by default "en".
+    version : str, optional
+        Wikipedia dump version to use, by default "latest".
+    dumps_path : Path, optional
+        Path in which to find previously downloaded dumps,
+        or where to save dumps downloaded in this call, by default None.
+    max_workers : int, optional
+        Maximum number of processes to use, by default None.
+    silent : bool, optional
+        Do not print anything in stout, by default None.
+    force : bool, optional
+        Overwrite content in output_path, if any, by default None.
+    """
     if not output_path.exists():
         output_path.mkdir()
         msg.good(f"Created output directory: {output_path}")

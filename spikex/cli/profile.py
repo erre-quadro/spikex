@@ -10,11 +10,10 @@ from ..matcher import Matcher
 from ..wikigraph import load as wg_load
 
 
-def profile_matcher(patterns_path: str, memory: bool = None):
+def profile_matcher(text_path: Path, patterns_path: Path, memory: bool = None):
     def func():
         nlp = spacy_load("en_core_web_sm")
-        path = Path("resources") / "sample.txt"
-        doc = nlp(path.read_text())
+        doc = nlp(text_path.read_text())
         matcher = Matcher(doc.vocab)
         patterns = [
             p["pattern"] if "pattern" in p else p

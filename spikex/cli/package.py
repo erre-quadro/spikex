@@ -10,6 +10,21 @@ from ..templates.wikigraph import pkg_path
 
 
 def package_wikigraph(input_path: Path, output_path: Path, force: bool = None):
+    """
+    Generate an installable Python package for a `WikiGraph`.
+
+    After packaging, "python setup.py sdist" must be run in the package directory,
+    which will create a .tar.gz archive that can be installed via "pip install".
+
+    Parameters
+    ----------
+    input_path : Path
+        [description]
+    output_path : Path
+        [description]
+    force : bool, optional
+        [description], by default None
+    """
     if not input_path or not input_path.exists():
         msg.fail("Can't locate graph data", input_path, exits=1)
     if not output_path:

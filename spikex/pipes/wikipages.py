@@ -4,6 +4,11 @@ from ..wikigraph import WikiGraph
 
 
 class WikiPageX:
+    """
+    Detect spans which match with Wikipedia pages, based on a
+    specific `WikiGraph`.
+    """
+
     def __init__(self, wikigraph: WikiGraph) -> None:
         Doc.set_extension("wiki_spans", default=[])
         Span.set_extension("wiki_pages", default=[])

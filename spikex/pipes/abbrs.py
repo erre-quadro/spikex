@@ -10,7 +10,7 @@ from ..util import span_idx2i
 class AbbrX:
     """
     *Strongly based on scispacy's AbbreviationDetector*.
-    Detects abbreviations which are acronyms or by using the algorithm in
+    Detect abbreviations which are acronyms or by using the algorithm in
     "A simple algorithm for identifying abbreviation definitions in biomedical
     text.", (Schwartz & Hearst, 2003).
 

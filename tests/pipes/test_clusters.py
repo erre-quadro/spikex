@@ -1,4 +1,6 @@
-from spikex.pipes.clusters import ClusterX, cluster_chunks
+from gensim.models import KeyedVectors
+
+from spikex.pipes.clusters import ClusterX, cluster_balls, cluster_chunks
 
 
 def test_cluster_chunks(nlp):
@@ -23,3 +25,21 @@ def test_clusterx(nlp):
         nlp("Grab this juicy orange and watch a dog chasing a cat.")
     )
     assert len(doc._.cluster_chunks) == 2
+
+
+def test_cluster_balls(nlp):
+    ents, wgts = zip(
+        *[
+            (c.text.lower(), c.vector)
+            for c in (
+                nlp("apple"),
+                nlp("pear"),
+                nlp("orange"),
+                nlp("lemon"),
+            )
+        ]
+    )
+    model = KeyedVectors(wgts[0].size)
+    model.add(ents, list(wgts))
+    print(cluster_balls(model))  # is not None  # no root
+    print(cluster_balls(model, root="orange"))  # with root

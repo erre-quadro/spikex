@@ -1,24 +1,54 @@
 from collections import Counter
 from itertools import combinations
+from random import randrange
+from typing import List
 
 import numpy as np
 from gensim.models import KeyedVectors
-from spacy.tokens import Doc
+from spacy.tokens import Doc, Span
 
 
 class ClusterX:
-    def __init__(self, min_score):
+    """
+    Cluster `noun_chunks` of a `Doc` by applying a revisited **Radial Ball Mapper** algorithm.
+    """
+
+    def __init__(self, min_score: float):
         Doc.set_extension("cluster_chunks", default=[])
         self.min_score = min_score
 
-    def __call__(self, doc):
+    def __call__(self, doc: Doc):
         doc._.cluster_chunks = cluster_chunks(
             list(doc.noun_chunks), min_score=self.min_score
         )
         return doc
 
 
-def cluster_chunks(chunks, stopwords=False, filter_pos=None, min_score=None):
+def cluster_chunks(
+    chunks: List[Span],
+    stopwords: bool = False,
+    filter_pos: List[str] = None,
+    min_score: float = None,
+):
+    """
+    Cluster chunks by using a revisited **Radial Ball Mapper** algorithm
+
+    Parameters
+    ----------
+    chunks : List[Span]
+        Chunks to cluster.
+    stopwords : bool, optional
+        Flag to exclude stopwords from chunks, by default False.
+    filter_pos : List[str], optional
+        POS tags to filter chunk words, by default None
+    min_score : float, optional
+        Threshold for clustering chunks, by default None
+
+    Returns
+    -------
+    List[List[Span]]
+        Clusters of chunks
+    """
     key2index, key2vector = _map_key_to_vector(chunks, stopwords, filter_pos)
     if not key2index or not key2vector:
         return
@@ -30,8 +60,43 @@ def cluster_chunks(chunks, stopwords=False, filter_pos=None, min_score=None):
     return [[chunks[key2index[i]] for i in cluster] for cluster in clusters]
 
 
-def cluster_balls(model, root, max_size=None, min_score=None):
-    if root not in model:
+def cluster_balls(
+    model: KeyedVectors,
+    root: str = None,
+    max_size: int = None,
+    min_score: float = None,
+):
+    """
+    Cluster a model's keys by applying a revisited Radial Ball Mapper algorithm.
+
+    A root key should be specified in case a point of interest is known.
+    Not specifying any root key, a random one is picked from the model.
+
+    If no otherwise specified, a `max_size` of 30 is used by default.
+
+    if no otherwise specified, a `min_score` calculated as mean of all best similarities,
+    minus a gap of 0.05, is used by default.
+
+    Parameters
+    ----------
+    model : KeyedVectors
+        Word2Vec model which stores all keys and vectors.
+    root : str
+        Point of interest from which to start clustering balls, by default None.
+    max_size : int, optional
+        Maximum size of a ball in terms of number of keys, by default None.
+    min_score : float, optional
+        Minimum similarity threshold for starting a cluster, by default None.
+
+    Returns
+    -------
+    List[List[str]]
+        Clusters of keys
+    """
+    if root is None:
+        rand_i = randrange(0, len(model.index2entity))
+        root = model.index2entity[rand_i]
+    elif root not in model:
         return
     max_size = max_size or 30
     neighs = model.most_similar(root, topn=max_size)
@@ -82,7 +147,34 @@ def cluster_balls(model, root, max_size=None, min_score=None):
     return clusters
 
 
-def cluster_balls_multi(model, keys, max_size=None, min_score=None):
+def cluster_balls_multi(
+    model: KeyedVectors,
+    keys: List[str],
+    max_size: int = None,
+    min_score: float = None,
+):
+    """
+    Cluster a model's keys by applying a revisited Radial Ball Mapper algorithm
+    to each key of a list, fixing overlappings in order to build coherent clusters.
+
+    This provides a method to create clusters based on multiple points of interest instead of one only.
+
+    Parameters
+    ----------
+    model : KeyedVectors
+        Word2Vec model which stores all keys and vectors.
+    keys : List[str]
+        Keys to use as points of interest.
+    max_size : int, optional
+        Maximum size of a ball in terms of number of keys, by default None.
+    min_score : float, optional
+        Minimum similarity threshold for starting a cluster, by default None.
+
+    Returns
+    -------
+    List[List[str]]
+        Clusters of keys
+    """
     clusters = []
     for key in keys:
         for ball in cluster_balls(

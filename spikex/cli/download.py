@@ -10,7 +10,15 @@ WIKIGRAPHS_TABLE = {
 }
 
 
-def download_wikigraph(wg_name):
+def download_wikigraph(wg_name: str):
+    """
+    Download and install a `WikiGraph`.
+
+    Parameters
+    ----------
+    wg_name : str
+        Name of the `WikiGraph` to download.
+    """
     if wg_name not in WIKIGRAPHS_TABLE:
         msg.fail(
             f"{wg_name} not available yet. Try with: {', '.join(WIKIGRAPHS_TABLE)}",

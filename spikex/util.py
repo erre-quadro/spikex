@@ -85,11 +85,11 @@ def idx2i(source: Union[Doc, Span, List[Token]], idx: int):
     return _idx2i(idx, 0, max_i)
 
 
-def pickle_dumps(data, protocol=-1):
+def pickle_dumps(data, protocol=4):
     return srsly.pickle_dumps(data, protocol=protocol)
 
 
-def pickle_dump(data, path, protocol=-1, compress=None):
+def pickle_dump(data, path, protocol=4, compress=None):
     open = gzip.open if compress else io.open
     with open(path, "wb") as fd:
         fd.write(pickle_dumps(data, protocol=protocol))

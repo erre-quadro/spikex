@@ -4,6 +4,11 @@ from ..matcher import Matcher
 
 
 class PhraseX:
+    """
+    Create a custom `Doc`'s underscore extension in which stores
+    matches found by applying given pattern matching expressions.
+    """
+
     def __init__(self, vocab, phrases_name, patterns):
         Doc.set_extension(phrases_name, default=[], force=True)
         self._phrases_name = phrases_name
@@ -45,6 +50,10 @@ NP_PATTERNS = [
 
 
 class NounPhraseX(PhraseX):
+    """
+    Detect noun phrases and assigns them at the custom underscore attribute `noun_phrases`
+    """
+
     def __init__(self, vocab):
         super(NounPhraseX, self).__init__(vocab, "noun_phrases", NP_PATTERNS)
 
@@ -58,6 +67,10 @@ VP_PATTERNS = [
 
 
 class VerbPhraseX(PhraseX):
+    """
+    Detect verb phrases and assigns them at the custom underscore attribute `verb_phrases`
+    """
+
     def __init__(self, vocab):
         super(VerbPhraseX, self).__init__(vocab, "verb_phrases", VP_PATTERNS)
 

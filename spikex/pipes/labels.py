@@ -4,6 +4,15 @@ from ..matcher import Matcher
 
 
 class LabelX:
+    """
+    Detect labelings, which are pattern matching expressions
+    linked to a specific label, in case using abbreviations and
+    acronyms previously found by AbbrX pipe.
+
+    If `only_longest` is flagged, it fixes overlapping matches
+    by merging them and assigning the label of the last match.
+    """
+
     def __init__(
         self, vocab, labelings=None, validate=None, only_longest=None
     ):
@@ -18,14 +27,14 @@ class LabelX:
 
     def add(self, label, patterns, on_match=None):
         """
-        Add a labeling-rules to the labeler.
+        Add a labeling rule to the labeler.
 
         Parameters
         ----------
         label: str
             The label related to patterns.
         patterns: list
-            The pattern matching rules.
+            The pattern matching expressions.
         on_match: callable, optional
             Callback executed on match, by default None.
         """
@@ -38,7 +47,6 @@ class LabelX:
         The supplied `Doc` have a `labelings` extension in which
         all labeled spans are collected.
         If the doc has abbrs, they contribute to label spans.
-
 
         Parameters
         ----------
@@ -121,7 +129,7 @@ def _fix_overlabelings(doc):
                 break
             # merge spans overlapping
             # in a tail-head manner
-            # (last one label wins)
+            # (last label wins)
             if (
                 span.start < other_span.start
                 and span.end > other_span.start
