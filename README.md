@@ -108,7 +108,12 @@ wg = wg_load("enwiki_core")
 nlp_vx = wg.find_vertex("Natural_language_processing")
 print(nlp["title"])
 
+categories = wikigraph.get_ancestor_vertices(nlp_vx, until=1)
+for vid in categories:
+    print("Category:", wikigraph.get_vertex(vid)["title"])
+
 >>> Natural_language_processing
+>>> Category: Computer_science
 ```
 ### Matcher
 
