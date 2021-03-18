@@ -143,7 +143,7 @@ from spikex.pipes import WikiPageX
 nlp = spacy_load("en_core_web_sm")
 doc = nlp("An apple a day keeps the doctor away")
 wg = wg_load("simplewiki_core")
-wpx = WikiPagex(wg)
+wpx = WikiPageX(wg)
 doc = wpx(doc)
 for span in doc._.wiki_spans:
   print(span._.wiki_pages)
