@@ -104,14 +104,11 @@ def cluster_balls(
         return
     if min_score is None:
         mean = _get_neighs_mean_score(model, neighs)
-        min_score = mean - 0.05
-    cut_off = 0.5
+        min_score = min(neighs[0][1], mean - 0.10)
     clusters = []
     root_cluster = {root}
     seen = {root: (root_cluster, 1)}
     for n, s in neighs:
-        if s <= cut_off:
-            break
         if n in seen:
             continue
         if s >= min_score:
@@ -119,10 +116,8 @@ def cluster_balls(
             seen.setdefault(n, (root_cluster, s))
             continue
         cluster = set()
-        min_sub_score = min_score + 0.05
+        min_sub_score = min_score + 0.10
         for nn, ss in model.most_similar(n, topn=max_size):
-            if ss <= cut_off:
-                break
             if nn in seen:
                 c, b = seen[nn]
                 if c == root_cluster or b >= ss:
@@ -234,12 +229,13 @@ def _map_key_to_vector(chunks, stopwords=None, filter_pos=None):
 
 def _get_neighs_mean_score(model, neighs):
     scores = []
-    for neigh, _ in neighs:
+    for neigh, score in neighs:
+        if not scores:
+            scores.append(score)
         similar = model.most_similar(neigh, topn=1)
         if not similar:
             continue
-        _, score = similar[0]
-        scores.append(score)
+        scores.extend([s[1] for s in similar])
     return sum(scores) / len(scores)
 
 

@@ -65,11 +65,7 @@ def test_acronyms_with_end_no_alnum(nlp, short):
 
 @pytest.mark.parametrize(
     "short",
-    [
-        ("(asa)"),
-        ("ASA"),
-        ("-- (ASA)"),
-    ],
+    [("(asa)"), ("ASA"), ("-- (ASA)")],
 )
 def test_acronyms_bad_long_form(nlp, short):
     text = "this is not our short abbreviation"
@@ -143,30 +139,38 @@ def test_detection_single(abbrx, nlp, text, short, long):
 
 
 def test_detection_multiple(abbrx, nlp):
-    text = "this is my abbr (MA) and this is MA (my abbr)"
+    text = "This is My Abbr (MA). I like MA. This is My Another (MA)"
     doc = abbrx(nlp(text))
+    assert len(doc._.abbrs) == 3
+    assert all(abbr.text == "MA" for abbr in doc._.abbrs)
+    assert all(
+        abbr._.long_form.text == lf
+        for abbr, lf in zip(doc._.abbrs, ("My Abbr", "My Abbr", "My Another"))
+    )
+
+
+def test_detection_with_loner(abbrx, nlp):
+    doc = abbrx(nlp("too cool (TC) is cool, this is TC"))
     assert len(doc._.abbrs) == 2
     for abbr in doc._.abbrs:
-        assert abbr.text == "MA"
-        assert abbr._.long_form.text == "my abbr"
+        assert abbr.text == "TC"
+        assert abbr._.long_form.text == "too cool"
+
+
+def test_detection_with_bad_loner(abbrx, nlp):
+    doc = abbrx(nlp("my abbr is cool, this is my abbr (MA)"))
+    assert len(doc._.abbrs) == 1
+    assert doc._.abbrs[0].text == "MA"
+    assert doc._.abbrs[0]._.long_form.text == "my abbr"
 
 
 @pytest.mark.parametrize(
-    "text, short, long",
+    "text",
     [
-        ("my abbr is cool, this is my abbr (MA)", "MA", "my abbr"),
-        ("too cool (TC) is cool, this is TC", "TC", "too cool"),
+        ("this is not an abbreviation ABB-9V"),
+        ("this is not an abbreviation. (AA)"),
     ],
 )
-def test_detection_with_loners(abbrx, nlp, text, short, long):
-    doc = abbrx(nlp(text))
-    assert len(doc._.abbrs) == 2
-    for abbr in doc._.abbrs:
-        assert abbr.text == short
-        assert abbr._.long_form.text == long
-
-
-@pytest.mark.parametrize("text", [("this is not an abbreviation ABB-9V")])
 def test_detection_empty(abbrx, nlp, text):
     doc = abbrx(nlp(text))
     assert len(doc._.abbrs) == 0
