@@ -40,6 +40,6 @@ def test_cluster_balls(nlp):
         ]
     )
     model = KeyedVectors(wgts[0].size)
-    model.add(ents, list(wgts))
+    model.add_vectors(ents, list(wgts))
     print(cluster_balls(model))  # is not None  # no root
     print(cluster_balls(model, root="orange"))  # with root

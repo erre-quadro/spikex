@@ -69,7 +69,7 @@ def iter_page_props_dump_data(**kwargs):
 
 
 def _parse_fx_page_props_dump(el):
-    pageid = el[0]
+    pageid = int(el[0])
     prop = el[1]
     value = el[2]
     return pageid, prop, value
@@ -81,10 +81,10 @@ def iter_page_dump_data(**kwargs):
 
 
 def _parse_fx_page_dump(el):
-    if el[1] not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
-        return
     ns_kind = el[1]
-    pageid = el[0]
+    if ns_kind not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
+        return
+    pageid = int(el[0])
     title = _unescape_title(fix_text(el[2]))
     return ns_kind, pageid, title
 
@@ -99,7 +99,7 @@ def iter_redirect_dump_data(**kwargs):
 def _parse_fx_redirect_dump(el):
     if el[1] not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
         return
-    redirectid = el[0]
+    redirectid = int(el[0])
     title = _unescape_title(fix_text(el[2]))
     return redirectid, title
 
@@ -112,7 +112,7 @@ def iter_pagelinks_dump_data(**kwargs):
 def _parse_fx_pagelinks_dump(el):
     if el[1] != WIKI_NS_KIND_PAGE or el[3] != WIKI_NS_KIND_PAGE:
         return
-    sourceid = el[0]
+    sourceid = int(el[0])
     target = _unescape_title(fix_text(el[2]))
     return sourceid, target
 
@@ -125,10 +125,10 @@ def iter_categorylinks_dump_data(**kwargs):
 
 
 def _parse_fx_categorylinks_dump(el):
-    if el[6] not in (WIKI_CL_TYPE_CATEGORY, WIKI_CL_TYPE_PAGE):
-        return
     cl_type = el[6]
-    sourceid = el[0]
+    if cl_type not in (WIKI_CL_TYPE_CATEGORY, WIKI_CL_TYPE_PAGE):
+        return
+    sourceid = int(el[0])
     target = _unescape_title(fix_text(el[1]))
     return cl_type, sourceid, target
 

@@ -1,26 +1,25 @@
 import importlib
 import json
-import logging
+from itertools import chain, combinations
+from mmap import mmap
 from pathlib import Path
 from typing import Iterable, Union
 
 import regex as re
-from cyac import AC
-from igraph import Graph, Vertex
+from bidict import frozenbidict
+from cyac import Trie
+from scipy.sparse import load_npz, save_npz
+from sknetwork.data import edgelist2adjacency
 from wasabi import msg
 
-from ..util import pickle_dump, pickle_load
+from ..util import json_dump, json_load, pickle_dump, pickle_load
 from . import dumptools as dt
 
-logging.basicConfig(
-    format="%(asctime)s : %(threadName)s : %(levelname)s : %(message)s",
-    level=logging.INFO,
-)
-
-VERTEX_KIND_CATEGORY = dt.WIKI_NS_KIND_CATEGORY
-VERTEX_KIND_PAGE = dt.WIKI_NS_KIND_PAGE
-
-VertexType = Union[Vertex, int]
+PGZ = "pages.gz"
+RGZ = "redirects.gz"
+DGZ = "disambiguations.gz"
+CGZ = "categories.gz"
+CLGZ = "category_links.npz"
 
 
 def load(name: Union[Path, str]):
@@ -36,19 +35,21 @@ def load(name: Union[Path, str]):
         meta = kls.meta
     else:
         raise IOError
-    f_path = data_path / "f"
-    g_path = data_path / "g"
-    if not g_path.exists() or not f_path.exists():
+    if not data_path.exists():
         raise IOError
-    return WikiGraph.load(g_path, f_path, meta)
+    return WikiGraph.load(data_path, meta)
 
 
 class WikiGraph:
     def __init__(self):
-        self.g = None
         self.wiki = None
         self.version = None
-        self._page_finder = WikiPageFinder()
+        self._pages = None
+        self._redirects = None
+        self._disambiguations = None
+        self._categories = None
+        self._category_links = None
+        self._wpd = WikiPageDetector()
 
     @staticmethod
     def build(**kwargs):
@@ -56,128 +57,196 @@ class WikiGraph:
         wg.wiki = kwargs["wiki"]
         kwargs["version"] = dt.resolve_version(wg.wiki, kwargs["version"])
         wg.version = kwargs["version"]
-        wg.g = make_graph(**kwargs)
-        wg.build_page_finder()
+        p, r, d, c, cl = _make_graph_components(**kwargs)
+        wg._pages = frozenbidict(p)
+        wg._redirects = r
+        wg._disambiguations = frozenbidict(d)
+        wg._categories = frozenbidict(c)
+        wg._category_links = cl
+        pages = wg.pages(redirect=True, disambi=True)
+        wg._wpd.build(pages)
         return wg
 
     @staticmethod
-    def load(g_path, f_path, meta):
+    def load(data_path, meta):
         wg = WikiGraph()
-        wg._page_finder = pickle_load(f_path)
-        graph_format = meta["graph_format"]
-        wg.g = Graph.Load(g_path.open("rb"), format=graph_format)
+        wg.wiki = meta["wiki"]
+        wg.version = meta["version"]
+        wg._pages = pickle_load(data_path / PGZ)
+        wg._redirects = json_load(data_path / RGZ)
+        wg._disambiguations = pickle_load(data_path / DGZ)
+        wg._categories = pickle_load(data_path / CGZ)
+        wg._category_links = load_npz(str(data_path / CLGZ))
+        wg._wpd = WikiPageDetector.load(data_path)
         return wg
 
-    def dump(self, dir_path: Path, graph_format: str = None):
-        pickle_dump(self._page_finder, dir_path / "f", compress=True)
-        self.g.write(dir_path / "g", graph_format or "picklez")
+    def dump(self, dir_path: Path):
+        for value, name in (
+            (self._pages, PGZ),
+            (self._disambiguations, DGZ),
+            (self._categories, CGZ),
+        ):
+            pickle_dump(
+                value,
+                dir_path / name,
+                compress=True,
+            )
+        json_dump(self._redirects, dir_path / RGZ, compress=True)
+        save_npz(str(dir_path / CLGZ), self._category_links)
+        self._wpd.dump(dir_path)
 
-    def build_page_finder(self):
-        self._page_finder.build(self.pages())
+    def is_redirect(self, page: str):
+        return page in self._redirects
 
-    def pages(self):
-        yield from self.g.vs.select(kind_eq=VERTEX_KIND_PAGE)
+    def is_disambiguation(self, page: str):
+        return page in self._disambiguations
+
+    def is_category(self, page: str):
+        return page in self._categories
+
+    def pages(self, redirect: bool = False, disambi: bool = False):
+        sources = [self._pages.keys(), self._categories.keys()]
+        if redirect:
+            sources.append(self._redirects.keys())
+        if disambi:
+            sources.append(self._disambiguations.keys())
+        return (el for el in chain.from_iterable(sources))
 
     def categories(self):
-        yield from self.g.vs.select(kind_eq=VERTEX_KIND_CATEGORY)
+        return self._categories.keys()
 
-    def find_vertex(self, title: str):
-        return self.g.vs.find(title=title)
-
-    def get_vertex(self, vertex: VertexType):
-        return self.g.vs[vertex] if isinstance(vertex, int) else vertex
-
-    def redirect_vertex(self, vertex: VertexType):
-        vx = self.get_vertex(vertex)
-        if vx["redirect"] < 0:
-            return vx
-        return self.g.vs.find(vx["redirect"])
-
-    def get_parent_vertices(self, vertex: VertexType):
-        vx = self.redirect_vertex(vertex)
-        es = self.g.es.select(_source=vx)
-        return [e.target_vertex.index for e in es]
-
-    def get_ancestor_vertices(self, vertex: VertexType, until: int = 2):
-        def get_ancestors(vx, left):
-            left -= 1
-            ancestors = set()
-            for parent in self.get_parent_vertices(vx):
-                ancestors.add(parent)
-                if not left:
-                    continue
-                ancestors.update(get_ancestors(parent, left))
-            return ancestors
-
-        return list(get_ancestors(vertex, until))
+    def redirect(self, page: str):
+        if page not in self._redirects:
+            return page
+        pageid = self._redirects[page]
+        if pageid in self._pages.inv:
+            return self._pages.inv[pageid]
+        if pageid in self._categories.inv:
+            return self._categories.inv[pageid]
+        if pageid in self._disambiguations.inv:
+            return self._disambiguations.inv[pageid]
 
     def find_pages(self, text: str):
-        yield from self._page_finder.find_pages(text)
+        yield from self._wpd.find_pages(text)
+
+    def get_pageid(self, page: str):
+        if page in self._pages:
+            return self._pages[page]
+        if page in self._redirects:
+            return self._redirects[page]
+        if page in self._categories:
+            return self._categories[page]
+        if page in self._disambiguations:
+            return self._disambiguations[page]
+
+    def get_categories(self, page: str, distance: int = 1):
+        def _recursion_task(pageid, left):
+            left -= 1
+            for neigh in _get_neighbors(self._category_links, pageid):
+                yield self._categories.inv[neigh]
+                if not left:
+                    continue
+                yield from _recursion_task(neigh, left)
+
+        return list(
+            set(
+                _recursion_task(self.get_pageid(self.redirect(page)), distance)
+            )
+        )
+
+
+def _get_neighbors(adjacency, node):
+    return adjacency.indices[
+        adjacency.indptr[node] : adjacency.indptr[node + 1]
+    ]
 
 
 _XP_SEPS = re.compile(r"(\p{P})")
 
 
-class WikiPageFinder:
-    def __init__(self, pages: Iterable[Vertex] = None):
-        self._ac = None
-        self._id2pages = {}
+class WikiPageDetector:
+    def __init__(self, pages: Iterable[str] = None):
+        self._map = None
+        self._trie = None
         if pages is not None:
             self.build(pages)
 
-    def __getstate__(self):
-        return (self._ac, self._id2pages)
+    @staticmethod
+    def load(path: Path):
+        wpd = WikiPageDetector()
+        wpd._map = pickle_load(path / "wpd_map.gz")
+        with (path / "wpd_trie").open("r+b") as bf:
+            wpd._trie = Trie.from_buff(mmap(bf.fileno(), 0), copy=False)
+        return wpd
 
-    def __setstate__(self, state):
-        self._ac, self._id2pages = state
+    def dump(self, path: Path):
+        self._trie.save(str(path / "wpd_trie"))
+        pickle_dump(self._map, path / "wpd_map.gz", compress=True)
 
-    def build(self, pages: Iterable[Vertex]):
-        key2pages = {}
+    def build(self, pages: Iterable[str]):
+        key2titles = {}
         for page in pages:
-            key = _clean_title(page["title"]).lower()
-            key_pages = key2pages.setdefault(key, [])
-            key_pages.append(page.index)
-        self._ac = AC.build(key2pages.keys(), ignore_case=True)
-        for key, id_ in self._ac.items():
-            self._id2pages.setdefault(id_, key2pages[key])
+            if not page:
+                continue
+            key = _clean_title(page).lower()
+            if not key:
+                key = page
+            titles = key2titles.setdefault(key, [])
+            titles.append(page)
+        mapping = {}
+        self._trie = Trie(ignore_case=True)
+        for key in key2titles:
+            id_ = self._trie.insert(key)
+            mapping.setdefault(id_, tuple(key2titles[key]))
+        self._map = tuple([mapping.get(i) for i in range(max(mapping) + 1)])
 
     def find_pages(self, text: str):
         def iter_matches(source):
             ac_seps = set([ord(p) for p in _XP_SEPS.findall(source)])
-            for id_, start_idx, end_idx in self._ac.match_longest(
+            for id_, start_idx, end_idx in self._trie.match_longest(
                 source, ac_seps
             ):
-                yield (start_idx, end_idx, self._id2pages[id_])
+                yield (start_idx, end_idx, self._map[id_])
 
         for match in iter_matches(text):
             yield match
-            end_idx = match[1]
-            start_idx = match[0]
-            tot_match_tokens = len(_XP_SEPS.split(text[start_idx:end_idx]))
-            if tot_match_tokens < 2:
+            match_text = text[match[0] : match[1]]
+            seps = list(_XP_SEPS.finditer(match_text))
+            if len(seps) < 1:
                 continue
-            submatches = set()
-            tokens = _XP_SEPS.split(text[start_idx:])
-            chunk = tokens[0]
-            for i in range(tot_match_tokens):
-                if i > 0:
-                    fix_i = i * 2
-                    start_idx += len(tokens[fix_i - 1])
-                    chunk = "".join(tokens[fix_i:])
-                for sidx, eidx, pages in iter_matches(chunk):
-                    s = start_idx + sidx
-                    if s >= end_idx:
-                        break
-                    if s in submatches:
+            tokens = []
+            last_end = 0
+            for sep in seps:
+                token = match_text[last_end : sep.start()]
+                start = last_end
+                last_end = sep.end()
+                if len(token) < 2 and not token.isalnum():
+                    continue
+                tokens.append((start, token))
+            tokens.append((last_end, match_text[last_end:]))
+            num_tokens = len(tokens)
+            for s, e in combinations(range(num_tokens + 1), 2):
+                if s == 0 and e == num_tokens:
+                    continue
+                e -= 1
+                submatches = set()
+                start = tokens[s][0]
+                end = tokens[e][0] + len(tokens[e][1])
+                subtext = match_text[start:end]
+                start += match[0]
+                for sidx, eidx, pages in iter_matches(subtext):
+                    coords = (sidx + start, eidx + start)
+                    if coords in submatches:
                         continue
-                    submatches.add(s)
-                    yield (s, start_idx + eidx, pages)
+                    submatches.add(coords)
+                    yield (*coords, pages)
 
 
-def make_graph(**kwargs):
+def _make_graph_components(**kwargs):
     cat2id = {}
-    page2idx = {}
-    g = Graph(directed=True)
+    page2id = {}
+    id2page = {}
+    disambiguations = {}
     pprops = _get_pprops(**kwargs)
     verbose = "verbose" in kwargs and kwargs["verbose"]
     msg_no_print = msg.no_print
@@ -191,21 +260,24 @@ def make_graph(**kwargs):
                 continue
             if "disambiguation" in page_props:
                 disambi = True
-        vx = g.add_vertex(
-            pageid,
-            title=title,
-            kind=ns_kind,
-            redirect=-1,
-            disambi=disambi,
-        )
-        if ns_kind == dt.WIKI_NS_KIND_CATEGORY:
+        if disambi:
+            disambiguations.setdefault(title, pageid)
+        if ns_kind == dt.WIKI_NS_KIND_PAGE:
+            page2id[title] = pageid
+            id2page[pageid] = title
+        elif ns_kind == dt.WIKI_NS_KIND_CATEGORY:
             cat2id[title] = pageid
-        elif ns_kind == dt.WIKI_NS_KIND_PAGE:
-            page2idx[title] = vx.index
-    _add_redirects(g, page2idx, **kwargs)
-    _add_category_links(g, page2idx.keys(), cat2id, **kwargs)
+    category_links = _get_category_links(cat2id, id2page, **kwargs)
+    redirects = _get_redirects(page2id, id2page, **kwargs)
+    with msg.loading("Removing disambi..."):
+        # no need for duplicates
+        for title, pageid in disambiguations.items():
+            page2id.pop(title, None)
+            id2page.pop(pageid, None)
+    with msg.loading("Building graph..."):
+        adjacency = edgelist2adjacency(category_links)
     msg.no_print = msg_no_print
-    return g
+    return page2id, redirects, disambiguations, cat2id, adjacency
 
 
 def _get_pprops(**kwargs):
@@ -217,36 +289,44 @@ def _get_pprops(**kwargs):
     return pprops
 
 
-def _add_redirects(g, page2idx, **kwargs):
+def _get_redirects(page2id, id2page, **kwargs):
+    redirects = {}
     for source_id, target_title in dt.iter_redirect_dump_data(**kwargs):
         try:
-            source_vx = g.vs.find(source_id)
-            target_idx = page2idx[target_title]
-        except (KeyError, ValueError):
+            page = id2page[source_id]
+            target_id = page2id[target_title]
+        except KeyError:
             continue
-        source_vx["redirect"] = target_idx
+        if source_id != target_id:
+            id2page.pop(source_id, None)
+        if page != target_title:
+            page2id.pop(page, None)
+        redirects.setdefault(page, target_id)
+    return redirects
 
 
-def _add_category_links(g, pages, cat2id, **kwargs):
-    edges = []
-    for _, source_id, target_title in dt.iter_categorylinks_dump_data(
+def _get_category_links(cat2id, id2page, **kwargs):
+    trie = Trie()
+    for page in id2page.values():
+        trie.insert(page)
+    category_links = []
+    for cl_type, source_id, target_title in dt.iter_categorylinks_dump_data(
         **kwargs
     ):
-        if target_title not in pages:
+        if (
+            # only categories with a page
+            target_title not in trie
+            # only allowed pages
+            or cl_type == dt.WIKI_CL_TYPE_PAGE
+            and source_id not in id2page
+        ):
             continue
         try:
-            source_vx = g.vs.find(source_id)
-            if (
-                source_vx["kind"] == dt.WIKI_NS_KIND_CATEGORY
-                and source_vx["title"] not in pages
-            ):
-                continue
             target_id = cat2id[target_title]
-        except (KeyError, ValueError):
+        except KeyError:
             continue
-        edges.append((source_vx["name"], target_id))
-    with msg.loading("adding category edges..."):
-        g.add_edges(edges)
+        category_links.append((source_id, target_id))
+    return category_links
 
 
 def _clean_title(title: str):

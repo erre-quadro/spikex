@@ -14,7 +14,7 @@ class ClusterX:
     """
 
     def __init__(self, min_score: float):
-        Doc.set_extension("cluster_chunks", default=[])
+        Doc.set_extension("cluster_chunks", default=[], force=True)
         self.min_score = min_score
 
     def __call__(self, doc: Doc):
@@ -55,7 +55,7 @@ def cluster_chunks(
     model = KeyedVectors(chunks[0].vector.size)
     keys = list(key2vector.keys())
     weights = list(key2vector.values())
-    model.add(keys, weights)
+    model.add_vectors(keys, weights)
     clusters = cluster_balls_multi(model, keys, min_score=min_score)
     return [[chunks[key2index[i]] for i in cluster] for cluster in clusters]
 
@@ -94,8 +94,8 @@ def cluster_balls(
         Clusters of keys
     """
     if root is None:
-        rand_i = randrange(0, len(model.index2entity))
-        root = model.index2entity[rand_i]
+        rand_i = randrange(0, len(model.index_to_key))
+        root = model.index_to_key[rand_i]
     elif root not in model:
         return
     max_size = max_size or 30

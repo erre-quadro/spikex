@@ -1,10 +1,11 @@
+bidict
 cyac
 ftfy
-gensim
+gensim>=4.0
 jsonschema
 memory-profiler
-python-igraph
 regex
+scikit-network
 smart-open
 spacy>2.3
 typer

@@ -85,6 +85,26 @@ def idx2i(source: Union[Doc, Span, List[Token]], idx: int):
     return _idx2i(idx, 0, max_i)
 
 
+def json_dumps(data, indent=0, sort_keys=False):
+    return srsly.json_dumps(data, indent, sort_keys)
+
+
+def json_dump(data, path, indent=0, sort_keys=False, compress=None):
+    open = gzip.open if compress else io.open
+    with open(path, "wb") as fd:
+        fd.write(json_dumps(data, indent, sort_keys).encode())
+
+
+def json_loads(data):
+    return srsly.json_loads(data)
+
+
+def json_load(path: Path):
+    open = gzip.open if is_gzip_path(path) else io.open
+    with open(path, "rb") as fd:
+        return json_loads(fd.read())
+
+
 def pickle_dumps(data, protocol=None):
     return srsly.pickle_dumps(data, protocol=protocol)
 
@@ -100,9 +120,18 @@ def pickle_loads(data):
 
 
 def pickle_load(path: Path):
-    with path.open("rb") as fd:
-        # The first two bytes of a gzip file are: 1f 8b
-        is_gz = fd.read(2) == b"\x1f\x8b"
-    open = gzip.open if is_gz else io.open
+    open = gzip.open if is_gzip_path(path) else io.open
     with open(path, "rb") as fd:
         return pickle_loads(fd.read())
+
+
+def is_gzip_data(data: bytes):
+    if len(data) > 2:
+        data = data[:2]
+    return data == b"\x1f\x8b"
+
+
+def is_gzip_path(path: Path):
+    with path.open("rb") as fd:
+        # The first two bytes of a gzip file are: 1f 8b
+        return is_gzip_data(fd.read(2))
