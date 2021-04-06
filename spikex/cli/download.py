@@ -27,6 +27,6 @@ def download_wikigraph(wg_name: str):
     wg_tar = f"{wg_name}.tar.gz"
     run_command(f"wget -O {wg_tar} {WIKIGRAPHS_TABLE[wg_name]}")
     run_command(
-        f"{sys.executable} -m pip install --no-deps --force-reinstall --no-cache {wg_tar}"
+        f"{sys.executable} -m pip install --no-deps --force-reinstall --no-cache-dir {wg_tar}"
     )
     run_command(f"rm {wg_tar}")
