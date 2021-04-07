@@ -105,7 +105,7 @@ class WikiGraph:
         return page in self._categories
 
     def pages(self, redirect: bool = False, disambi: bool = False):
-        sources = [self._pages.keys(), self._categories.keys()]
+        sources = [self._pages.keys()]
         if redirect:
             sources.append(self._redirects.keys())
         if disambi:
@@ -266,7 +266,7 @@ def _make_graph_components(**kwargs):
             page2id[title] = pageid
             id2page[pageid] = title
         elif ns_kind == dt.WIKI_NS_KIND_CATEGORY:
-            cat2id[title] = pageid
+            cat2id[f"Category:{title}"] = pageid
     category_links = _get_category_links(cat2id, id2page, **kwargs)
     redirects = _get_redirects(page2id, id2page, **kwargs)
     with msg.loading("Removing disambi..."):
@@ -322,7 +322,7 @@ def _get_category_links(cat2id, id2page, **kwargs):
         ):
             continue
         try:
-            target_id = cat2id[target_title]
+            target_id = cat2id[f"Category:{target_title}"]
         except KeyError:
             continue
         category_links.append((source_id, target_id))

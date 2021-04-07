@@ -127,17 +127,10 @@ def _find_abbreviation(
 ) -> Union[Tuple[int, int], None]:
     # An abbreviation char must match the starting
     # char of a word (acronym) or an its internal one.
-    # In the latter case, the next abbreviation char
-    # must be another internal char of the same word
-    # or its beginning. In any case, a word which have
-    # matched an internal char must have been matched
-    # also at its starting char. Moreover, the first char
-    # of the abbreviation must be the starting char of a word.
+    # The first char of the abbreviation must be the starting char of a word.
     jumps = 0
-    has_internal_match = False
     long_index_end = long_index  # alnum bounds
     last_short_index = short_index
-    short_index_reset = short_index
     while short_index >= 0 and long_index >= 0:
         # Get next abbreviation char to check
         short_char = short_form[short_index].lower()
@@ -162,12 +155,6 @@ def _find_abbreviation(
             # ends with non-alphanumeric chars
             if long_index == long_index_end and not long_char.isalnum():
                 long_index_end -= 1
-            # A word which have matched an internal char
-            # must match also its starting char
-            if is_starting_char and has_internal_match:
-                short_index = short_index_reset
-                has_internal_match = False
-                continue
             long_index -= 1
             continue
         # First abbreviation char must match
@@ -177,8 +164,6 @@ def _find_abbreviation(
             continue
         long_index -= 1
         short_index -= 1
-        if not is_starting_char:
-            has_internal_match = True
     # In case it didn't end at the starting
     # of a word, move it a step ahead
     if long_index >= 0 and not long_form[long_index].isalnum():

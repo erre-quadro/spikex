@@ -72,7 +72,7 @@ def test_acronyms_bad_long_form(nlp, short):
     assert _get_long_form(nlp, text, short) == None
 
 
-@pytest.mark.parametrize("short", [("(asbrv)"), ("ASBRV"), ("TSO")])
+@pytest.mark.parametrize("short", [("(afbrv)"), ("AFBRV"), ("TSO")])
 def test_acronyms_bad_short_form(nlp, short):
     text = "this is a short abbreviation"
     assert _get_long_form(nlp, text, short) == None
