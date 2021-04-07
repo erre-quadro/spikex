@@ -4,9 +4,9 @@ from spacy.util import run_command
 from wasabi import msg
 
 WIKIGRAPHS_TABLE = {
-    "enwiki_core": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/ESedYiVvufpCtImuOlFXm6MB_5YyfKQnZIvDinnYbL-NmA?Download=1",
-    "simplewiki_core": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EQhheXcD9KtGpXyoZ9a2zOEBmGIvZXuyFoV1KoYOzgsjLw?Download=1",
-    "itwiki_core": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EVBnV0JaBNlFpmNg91hT458BfFjY_7MW2kqIvRCkhdpWVQ?Download=1",
+    "enwiki_core": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Eco6n99fPu5NktUaF7SkzpkBk7Ru3ZaH-BD_tr8Tq6sHWw?Download=1",
+    # "simplewiki_core": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EQhheXcD9KtGpXyoZ9a2zOEBmGIvZXuyFoV1KoYOzgsjLw?Download=1",
+    # "itwiki_core": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EVBnV0JaBNlFpmNg91hT458BfFjY_7MW2kqIvRCkhdpWVQ?Download=1",
 }
 
 
