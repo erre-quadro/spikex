@@ -19,9 +19,10 @@ class WikiPageX:
 
     def __call__(self, doc: Doc):
         idx2i, text = _preprocess_doc(doc)
+        maxlen = len(text)
         for start_idx, end_idx, pages in self._wg.find_pages(text):
             # fix ending at whitespace
-            if text[end_idx] == _TEXT_SEP:
+            if end_idx < maxlen and text[end_idx] == _TEXT_SEP:
                 end_idx += 1
             if start_idx not in idx2i or end_idx not in idx2i:
                 continue
