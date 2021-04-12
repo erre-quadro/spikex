@@ -1,9 +1,10 @@
+import regex as re
 from spacy.tokens import Doc, Span
 
 from ..wikigraph import WikiGraph
 
-
 _TEXT_SEP = "_"
+_PATTERN_SEP = re.compile(r"[\s\n]")
 
 
 class WikiPageX:
@@ -22,7 +23,11 @@ class WikiPageX:
         maxlen = len(text)
         for start_idx, end_idx, pages in self._wg.find_pages(text):
             # fix ending at whitespace
-            if end_idx < maxlen and text[end_idx] == _TEXT_SEP:
+            if (
+                end_idx not in idx2i
+                and end_idx < maxlen
+                and text[end_idx] == _TEXT_SEP
+            ):
                 end_idx += 1
             if start_idx not in idx2i or end_idx not in idx2i:
                 continue
@@ -44,4 +49,4 @@ def _preprocess_doc(doc):
         curr_idx += len(value)
     idx2i[curr_idx] = len(doc)
     text = "".join(text_tokens)
-    return idx2i, text.replace(" ", _TEXT_SEP)
+    return idx2i, _PATTERN_SEP.sub(_TEXT_SEP, text)
