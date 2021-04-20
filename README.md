@@ -7,6 +7,14 @@ It aims to help in building knowledge extraction tools with almost-zero effort.
 [![pypi Version](https://img.shields.io/pypi/v/spikex.svg?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/spikex/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/ambv/black)
 
+## What's new in SpikeX 0.5
+
+**WikiGraph** has never been so lightning fast:
+- 🌕 **Performance mooning**, thanks to the adoption of a *sparse adjacency matrix* through *scikit-network*, instead of using *igraph* to handle pages graph 
+- 🚀 **Memory optimization**, with a *consumption cut* by ~40% and a *compressed size cut* by ~20%, introducing new structures to manage data
+- 📖 **New APIs** for a faster and easier usage and interaction
+- 🛠 **Overall fixes**, for a better graph and a better pages matching 
+ 
 ## Pipes
 
 - **WikiPageX** links Wikipedia pages to chunks in text
@@ -62,18 +70,18 @@ Creating a `WikiGraph` can take time, depending on how large is its Wikipedia du
 
 | Date | WikiGraph | Lang | Size (compressed) | Size (memory) | |
 | --- | --- | --- | --- | --- | --- |
-| 2021-02-01 | enwiki_core | EN | 1.5GB | 9.5GB | [![][dl]][enwiki_core_20210210] | 
-| 2021-02-01 | simplewiki_core | EN | 23MB | 183MB | [![][dl]][simplewiki_core_20210210] |
-| 2021-02-01 | itwiki_core | IT | 244MB | 1.7GB | [![][dl]][itwiki_core_20210210] |
+| 2021-04-01 | enwiki_core | EN | 1.1GB | 5.9GB | [![][dl]][enwiki_core_20210401] | 
+| 2021-04-01 | simplewiki_core | EN | 19MB | 120MB | [![][dl]][simplewiki_core_20210401] |
+| 2021-04-01 | itwiki_core | IT | 189MB | 1.1GB | [![][dl]][itwiki_core_20210401] |
 | More coming... |
 
-[enwiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/ESedYiVvufpCtImuOlFXm6MB_5YyfKQnZIvDinnYbL-NmA?Download=1
-[simplewiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EQhheXcD9KtGpXyoZ9a2zOEBmGIvZXuyFoV1KoYOzgsjLw?Download=1
-[itwiki_core_20210210]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EVBnV0JaBNlFpmNg91hT458BfFjY_7MW2kqIvRCkhdpWVQ?Download=1
+[enwiki_core_20210401]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Eco6n99fPu5NktUaF7SkzpkBk7Ru3ZaH-BD_tr8Tq6sHWw?Download=1
+[simplewiki_core_20210401]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EbwV-u0YtVdNo4f02X7HbDsBs3BRTEu4ix-_n0JYLKOJzQ?Download=1
+[itwiki_core_20210401]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EY7anrn0R0JApoIryZck2b0Bl6T_o3YGNAbCpg6eAHXPrg?Download=1
 
 [dl]: http://i.imgur.com/gQvPgr0.png
 
-SpikeX provides a command to shortcut downloading and installing a `WikiGraph`:
+SpikeX provides a command to shortcut downloading and installing a `WikiGraph` (Linux or macOS, Windows not supported yet):
 ```bash
 spikex download-wikigraph simplewiki_core
 ```
@@ -105,15 +113,16 @@ Now your are ready to use your WikiGraph as you wish:
 from spikex.wikigraph import load as wg_load
 
 wg = wg_load("enwiki_core")
-nlp_vx = wg.find_vertex("Natural_language_processing")
-print(nlp["title"])
+page = "Natural_language_processing"
+categories = wg.get_categories(page, distance=1)
+for category in categories:
+    print(category)
 
-categories = wg.get_ancestor_vertices(nlp_vx, until=1)
-for vid in categories:
-    print("Category:", wg.get_vertex(vid)["title"])
+>>> Category:Speech_recognition
+>>> Category:Artificial_intelligence
+>>> Category:Natural_language_processing
+>>> Category:Computational_linguistics
 
->>> Natural_language_processing
->>> Category: Computer_science
 ```
 ### Matcher
 
@@ -131,10 +140,8 @@ doc = nlp("I love NLP")
 for _, s, e in matcher(doc):
   print(doc[s: e])
 
-
 >>> NLP
 ```
-
 
 ### WikiPageX
 
@@ -153,13 +160,13 @@ doc = wpx(doc)
 for span in doc._.wiki_spans:
   print(span._.wiki_pages)
 
->>> [(211331, 'An')]
->>> [(31340, 'Apple'), (52207, 'Apple_(disambiguation)'), (53570, 'Apple_(company)'), (235117, 'Apple_(tree)')]
->>> [(31322, 'A'), (135354, 'A_(musical_note)'), (206266, 'A_(New_York_City_Subway_service)'), (211236, 'A_(disambiguation)'), (212629, 'A_(Cyrillic)')]
->>> [(32414, 'Day')]
->>> [(248450, 'The_Doctor'), (248452, 'The_Doctor_(Doctor_Who)'), (248453, 'The_Doctor_(Star_Trek)'), (248519, 'The_Doctor_(disambiguation)')]
->>> [(206763, 'The')]
->>> [(73638, 'Doctor_(Doctor_Who)'), (231571, 'Doctor_(Star_Trek)'), (232311, 'Doctor'), (250762, 'Doctor_(title)'), (262817, 'Doctor_(disambiguation)')]
+>>> ['An']
+>>> ['Apple', 'Apple_(disambiguation)', 'Apple_(company)', 'Apple_(tree)']
+>>> ['A', 'A_(musical_note)', 'A_(New_York_City_Subway_service)', 'A_(disambiguation)', 'A_(Cyrillic)')]
+>>> ['Day']
+>>> ['The_Doctor', 'The_Doctor_(Doctor_Who)', 'The_Doctor_(Star_Trek)', 'The_Doctor_(disambiguation)']
+>>> ['The']
+>>> ['Doctor_(Doctor_Who)', 'Doctor_(Star_Trek)', 'Doctor', 'Doctor_(title)', 'Doctor_(disambiguation)']
 ``` 
 
 ### ClusterX
@@ -271,4 +278,4 @@ for sent in doc.sents:
 ```
 
 ## That's all folks
-Have fun!
+Feel free to contribute and have fun!
