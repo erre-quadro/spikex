@@ -9,7 +9,7 @@ import regex as re
 from bidict import frozenbidict
 from cyac import Trie
 from scipy.sparse import load_npz, save_npz
-from sknetwork.data import edgelist2adjacency
+from sknetwork.utils.parse import edgelist2adjacency
 from wasabi import msg
 
 from ..util import json_dump, json_load, pickle_dump, pickle_load
