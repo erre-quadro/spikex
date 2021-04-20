@@ -7,11 +7,11 @@ It aims to help in building knowledge extraction tools with almost-zero effort.
 [![pypi Version](https://img.shields.io/pypi/v/spikex.svg?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/spikex/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/ambv/black)
 
-## What's new in SpikeX 0.5
+## What's new in SpikeX 0.5.0
 
 **WikiGraph** has never been so lightning fast:
-- 🌕 **Performance mooning**, thanks to the adoption of a *sparse adjacency matrix* through *scikit-network*, instead of using *igraph* to handle pages graph 
-- 🚀 **Memory optimization**, with a *consumption cut* by ~40% and a *compressed size cut* by ~20%, introducing new structures to manage data
+- 🌕 **Performance mooning**, thanks to the adoption of a *sparse adjacency matrix* to handle pages graph, instead of using *igraph*
+- 🚀 **Memory optimization**, with a consumption cut by ~40% and a compressed size cut by ~20%, introducing new *bidirectional dictionaries* to manage data
 - 📖 **New APIs** for a faster and easier usage and interaction
 - 🛠 **Overall fixes**, for a better graph and a better pages matching 
  

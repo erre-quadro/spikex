@@ -9,8 +9,9 @@ import regex as re
 from bidict import frozenbidict
 from cyac import Trie
 from scipy.sparse import load_npz, save_npz
-from sknetwork.utils.parse import edgelist2adjacency
+from scipy import sparse
 from wasabi import msg
+import numpy as np
 
 from ..util import json_dump, json_load, pickle_dump, pickle_load
 from . import dumptools as dt
@@ -275,7 +276,7 @@ def _make_graph_components(**kwargs):
             page2id.pop(title, None)
             id2page.pop(pageid, None)
     with msg.loading("Building graph..."):
-        adjacency = edgelist2adjacency(category_links)
+        adjacency = _edgelist2adjacency(category_links)
     msg.no_print = msg_no_print
     return page2id, redirects, disambiguations, cat2id, adjacency
 
@@ -339,3 +340,46 @@ def _clean_title(title: str):
     a = title[:open_at]
     b = title[close_at + 1 :]
     return "".join((a, b))
+
+
+def _edgelist2adjacency(edgelist: list) -> sparse.csr_matrix:
+    """
+    Code adapted from **scikit-network**:
+    https://github.com/sknetwork-team/scikit-network/blob/master/sknetwork/utils/parse.py
+
+    Build an adjacency matrix from a list of edges.
+
+    Parameters
+    ----------
+    edgelist : list
+        List of edges as pairs (i, j) or triplets (i, j, w) for weighted edges.
+    undirected : bool
+        If ``True``, return a symmetric adjacency.
+
+    Returns
+    -------
+    adjacency : sparse.csr_matrix
+
+    Examples
+    --------
+    >>> edgelist = [(0, 1), (1, 2), (2, 0)]
+    >>> adjacency = edgelist2adjacency(edgelist)
+    >>> adjacency.shape, adjacency.nnz
+    ((3, 3), 3)
+    >>> adjacency = edgelist2adjacency(edgelist, undirected=True)
+    >>> adjacency.shape, adjacency.nnz
+    ((3, 3), 6)
+    >>> weighted_edgelist = [(0, 1, 0.2), (1, 2, 4), (2, 0, 1.3)]
+    >>> adjacency = edgelist2adjacency(weighted_edgelist)
+    >>> adjacency.dtype
+    dtype('float64')
+    """
+    edges = np.array(edgelist)
+    row, col = edges[:, 0].astype(np.int32), edges[:, 1].astype(np.int32)
+    n = max(row.max(), col.max()) + 1
+    if edges.shape[1] > 2:
+        data = edges[:, 2]
+    else:
+        data = np.ones_like(row, dtype=bool)
+    adjacency = sparse.csr_matrix((data, (row, col)), shape=(n, n))
+    return adjacency
