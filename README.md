@@ -262,9 +262,9 @@ from spikex.defaults import spacy_version
 if spacy_version >= 3:
   from spacy.language import Language
 
-    @Language.factory("sentx")
-    def create_sentx(nlp, name):
-        return SentX()
+  @Language.factory("sentx")
+  def create_sentx(nlp, name):
+      return SentX()
 
 nlp = spacy_load("en_core_web_sm")
 sentx_pipe = SentX() if spacy_version < 3 else "sentx"
