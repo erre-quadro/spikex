@@ -1,8 +1,17 @@
 import regex as re
 from spacy.tokens import Doc
 
+from spikex.defaults import spacy_version
+
 from .fragment import Fragment
 from .nbmodel import NBModel
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("sentx")
+    def create_sentx(nlp, name):
+        return SentX()
 
 
 class SentX:
