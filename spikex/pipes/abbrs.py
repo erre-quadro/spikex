@@ -2,9 +2,17 @@ from typing import Iterable, Optional, Set, Tuple, Union
 
 from spacy.tokens import Doc, Span
 
+from spikex.defaults import spacy_version
 from spikex.matcher import Matcher
 
 from ..util import span_idx2i
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("abbrx")
+    def create_abbrx(nlp, name):
+        return AbbrX()
 
 
 class AbbrX:

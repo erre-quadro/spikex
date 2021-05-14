@@ -1,6 +1,15 @@
 from spacy.tokens import Doc, Span, Token
 
+from spikex.defaults import spacy_version
+
 from ..matcher import Matcher
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("labelx")
+    def create_labelx(nlp, name):
+        return LabelX()
 
 
 class LabelX:

@@ -1,6 +1,15 @@
 from spacy.tokens import Doc, Span
 
+from spikex.defaults import spacy_version
+
 from ..matcher import Matcher
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("phrasex")
+    def create_phrasex(nlp, name):
+        return PhraseX()
 
 
 class PhraseX:
@@ -27,6 +36,14 @@ class PhraseX:
         phrases.sort(key=lambda x: (x.start, -len(x)))
         setattr(doc._, self._phrases_name, _fix_overlappings(phrases))
         return doc
+
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("nounphrasex")
+    def create_nounphrasex(nlp, name):
+        return NounPhraseX()
 
 
 NP_PATTERNS = [
@@ -56,6 +73,14 @@ class NounPhraseX(PhraseX):
 
     def __init__(self, vocab):
         super(NounPhraseX, self).__init__(vocab, "noun_phrases", NP_PATTERNS)
+
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("verbphrasex")
+    def create_verbphrasex(nlp, name):
+        return VerbPhraseX()
 
 
 VP_PATTERNS = [

@@ -1,6 +1,5 @@
 bidict
 cyac
-ftfy
 gensim>=4.0
 jsonschema
 memory-profiler

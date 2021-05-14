@@ -7,6 +7,15 @@ import numpy as np
 from gensim.models import KeyedVectors
 from spacy.tokens import Doc, Span
 
+from spikex.defaults import spacy_version
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("clusterx")
+    def create_clusterx(nlp, name):
+        return ClusterX()
+
 
 class ClusterX:
     """

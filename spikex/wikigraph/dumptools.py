@@ -7,7 +7,6 @@ from pathlib import Path
 
 import regex as re
 import requests
-from ftfy import fix_text
 from smart_open.compression import compression_wrapper
 from smart_open.http import open as http_open
 from tqdm import tqdm
@@ -85,7 +84,7 @@ def _parse_fx_page_dump(el):
     if ns_kind not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
         return
     pageid = int(el[0])
-    title = _unescape_title(fix_text(el[2]))
+    title = _unescape_title(el[2])
     return ns_kind, pageid, title
 
 
@@ -100,7 +99,7 @@ def _parse_fx_redirect_dump(el):
     if el[1] not in (WIKI_NS_KIND_CATEGORY, WIKI_NS_KIND_PAGE):
         return
     redirectid = int(el[0])
-    title = _unescape_title(fix_text(el[2]))
+    title = _unescape_title(el[2])
     return redirectid, title
 
 
@@ -113,7 +112,7 @@ def _parse_fx_pagelinks_dump(el):
     if el[1] != WIKI_NS_KIND_PAGE or el[3] != WIKI_NS_KIND_PAGE:
         return
     sourceid = int(el[0])
-    target = _unescape_title(fix_text(el[2]))
+    target = _unescape_title(el[2])
     return sourceid, target
 
 
@@ -129,7 +128,7 @@ def _parse_fx_categorylinks_dump(el):
     if cl_type not in (WIKI_CL_TYPE_CATEGORY, WIKI_CL_TYPE_PAGE):
         return
     sourceid = int(el[0])
-    target = _unescape_title(fix_text(el[1]))
+    target = _unescape_title(el[1])
     return cl_type, sourceid, target
 
 

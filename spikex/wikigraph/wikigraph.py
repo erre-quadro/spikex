@@ -5,13 +5,13 @@ from mmap import mmap
 from pathlib import Path
 from typing import Iterable, Union
 
+import numpy as np
 import regex as re
 from bidict import frozenbidict
 from cyac import Trie
-from scipy.sparse import load_npz, save_npz
 from scipy import sparse
+from scipy.sparse import load_npz, save_npz
 from wasabi import msg
-import numpy as np
 
 from ..util import json_dump, json_load, pickle_dump, pickle_load
 from . import dumptools as dt
@@ -270,8 +270,10 @@ def _make_graph_components(**kwargs):
             cat2id[f"Category:{title}"] = pageid
     category_links = _get_category_links(cat2id, id2page, **kwargs)
     redirects = _get_redirects(page2id, id2page, **kwargs)
-    with msg.loading("Removing disambi..."):
-        # no need for duplicates
+    with msg.loading("Removing duplicates..."):
+        for title in redirects.values():
+            source_id = page2id.pop(title, None)
+            id2page.pop(source_id, None)
         for title, pageid in disambiguations.items():
             page2id.pop(title, None)
             id2page.pop(pageid, None)
@@ -298,11 +300,16 @@ def _get_redirects(page2id, id2page, **kwargs):
             target_id = page2id[target_title]
         except KeyError:
             continue
-        if source_id != target_id:
-            id2page.pop(source_id, None)
-        if page != target_title:
-            page2id.pop(page, None)
         redirects.setdefault(page, target_id)
+    # fix re-redirects
+    for page, target_id in redirects.items():
+        target = id2page[target_id]
+        if target not in redirects:
+            continue
+        re_target_id = redirects[target]
+        if re_target_id == target_id:
+            continue
+        redirects[page] = re_target_id
     return redirects
 
 

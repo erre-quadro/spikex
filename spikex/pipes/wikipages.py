@@ -1,7 +1,17 @@
 import regex as re
 from spacy.tokens import Doc, Span
 
+from spikex.defaults import spacy_version
+
 from ..wikigraph import WikiGraph
+
+if spacy_version >= 3:
+    from spacy.language import Language
+
+    @Language.factory("wikipagex")
+    def create_wikipagex(nlp, name):
+        return WikiPageX()
+
 
 _TEXT_SEP = "_"
 _PATTERN_SEP = re.compile(r"[\s\n]")

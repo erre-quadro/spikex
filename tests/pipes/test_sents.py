@@ -1,14 +1,6 @@
 from spikex.defaults import spacy_version
 from spikex.pipes import SentX
 
-if spacy_version >= 3:
-    from spacy.language import Language
-
-    @Language.factory("sentx")
-    def create_sentx(nlp, name):
-        return SentX()
-
-
 SENTS = [
     "This is a bullet list that we want to be a unique sentence:\n"
     "\ta) the first bullet;\n"
