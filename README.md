@@ -70,9 +70,9 @@ Creating a `WikiGraph` can take time, depending on how large is its Wikipedia du
 
 | Date | WikiGraph | Lang | Size (compressed) | Size (memory) | |
 | --- | --- | --- | --- | --- | --- |
-| 2021-04-01 | enwiki_core | EN | 1.1GB | 5.9GB | [![][dl]][enwiki_core_20210401] | 
-| 2021-04-01 | simplewiki_core | EN | 19MB | 120MB | [![][dl]][simplewiki_core_20210401] |
-| 2021-04-01 | itwiki_core | IT | 189MB | 1.1GB | [![][dl]][itwiki_core_20210401] |
+| 2021-04-01 | enwiki_core | EN | 1.3GB | 8GB | [![][dl]][enwiki_core_20210401] | 
+| 2021-04-01 | simplewiki_core | EN | 20MB | 128MB | [![][dl]][simplewiki_core_20210401] |
+| 2021-04-01 | itwiki_core | IT | 208MB | 1.2GB | [![][dl]][itwiki_core_20210401] |
 | More coming... |
 
 [enwiki_core_20210401]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Eco6n99fPu5NktUaF7SkzpkBk7Ru3ZaH-BD_tr8Tq6sHWw?Download=1
