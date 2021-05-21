@@ -130,6 +130,14 @@ class WikiGraph:
     def find_pages(self, text: str):
         yield from self._wpd.find_pages(text)
 
+    def get_page(self, pageid: int):
+        if pageid in self._pages.inv:
+            return self._pages.inv[pageid]
+        if pageid in self._categories.inv:
+            return self._categories.inv[pageid]
+        if pageid in self._disambiguations.inv:
+            return self._disambiguations[pageid]
+
     def get_pageid(self, page: str):
         if page in self._pages:
             return self._pages[page]
@@ -141,25 +149,44 @@ class WikiGraph:
             return self._disambiguations[page]
 
     def get_categories(self, page: str, distance: int = 1):
-        def _recursion_task(pageid, left):
-            left -= 1
-            for neigh in _get_neighbors(self._category_links, pageid):
-                yield self._categories.inv[neigh]
-                if not left:
-                    continue
-                yield from _recursion_task(neigh, left)
-
-        return list(
-            set(
-                _recursion_task(self.get_pageid(self.redirect(page)), distance)
+        return [
+            self.get_page(pageid)
+            for pageid in _get_neighborhood(
+                self.get_pageid(self.redirect(page)),
+                distance,
+                self._category_links,
             )
-        )
+        ]
+
+    def get_neighbors(self, page: str, distance: int = 1):
+        adjacency = self._category_links + self._category_links.T
+        adjacency.tocsr().sort_indices()
+        return [
+            self.get_page(pageid)
+            for pageid in _get_neighborhood(
+                self.get_pageid(self.redirect(page)),
+                distance,
+                adjacency,
+            )
+        ]
 
 
 def _get_neighbors(adjacency, node):
     return adjacency.indices[
         adjacency.indptr[node] : adjacency.indptr[node + 1]
     ]
+
+
+def _get_neighborhood(pageid, distance, adjacency):
+    def _recursion_task(pageid, left):
+        left -= 1
+        for neigh in _get_neighbors(adjacency, pageid):
+            yield neigh
+            if not left:
+                continue
+            yield from _recursion_task(neigh, left)
+
+    return list(set(_recursion_task(pageid, distance)))
 
 
 _XP_SEPS = re.compile(r"(\p{P})")
