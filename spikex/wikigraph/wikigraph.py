@@ -136,7 +136,7 @@ class WikiGraph:
         if pageid in self._categories.inv:
             return self._categories.inv[pageid]
         if pageid in self._disambiguations.inv:
-            return self._disambiguations[pageid]
+            return self._disambiguations.inv[pageid]
 
     def get_pageid(self, page: str):
         if page in self._pages:
