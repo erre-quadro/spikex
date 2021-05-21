@@ -100,7 +100,7 @@ class WikiGraph:
         return page in self._redirects
 
     def is_disambiguation(self, page: str):
-        return page in self._disambiguations
+        return self.redirect(page) in self._disambiguations
 
     def is_category(self, page: str):
         return page in self._categories
