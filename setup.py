@@ -32,7 +32,7 @@ setup(
     test_suite="tests",
     tests_require=test_requirements,
     url="https://github.com/erre-quadro/spikex",
-    version="0.5.2-dev2",
+    version="0.5.2",
     zip_safe=False,
     entry_points = {
         'console_scripts': ['spikex=spikex.__main__:main'],
