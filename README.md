@@ -70,14 +70,14 @@ Creating a `WikiGraph` can take time, depending on how large is its Wikipedia du
 
 | Date | WikiGraph | Lang | Size (compressed) | Size (memory) | |
 | --- | --- | --- | --- | --- | --- |
-| 2021-04-01 | enwiki_core | EN | 1.1GB | 5.9GB | [![][dl]][enwiki_core_20210401] | 
-| 2021-04-01 | simplewiki_core | EN | 19MB | 120MB | [![][dl]][simplewiki_core_20210401] |
-| 2021-04-01 | itwiki_core | IT | 189MB | 1.1GB | [![][dl]][itwiki_core_20210401] |
+| 2021-05-20 | enwiki_core | EN | 1.3GB | 8GB | [![][dl]][enwiki_core_20210520] | 
+| 2021-05-20 | simplewiki_core | EN | 20MB | 130MB | [![][dl]][simplewiki_core_20210520] |
+| 2021-05-20 | itwiki_core | IT | 208MB | 1.2GB | [![][dl]][itwiki_core_20210520] |
 | More coming... |
 
-[enwiki_core_20210401]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Eco6n99fPu5NktUaF7SkzpkBk7Ru3ZaH-BD_tr8Tq6sHWw?Download=1
-[simplewiki_core_20210401]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EbwV-u0YtVdNo4f02X7HbDsBs3BRTEu4ix-_n0JYLKOJzQ?Download=1
-[itwiki_core_20210401]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EY7anrn0R0JApoIryZck2b0Bl6T_o3YGNAbCpg6eAHXPrg?Download=1
+[enwiki_core_20210520]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EeIb238HAmtCruMvhzZdOl8BIEBU_09XV5FnHE4SVmYzBQ?Download=1
+[simplewiki_core_20210520]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EWdpEV_R4JVEk_ZwvJTrAEUBsLpmJMxyWDa13sFOzQAo3Q?Download=1
+[itwiki_core_20210520]: https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EcWYGXp5SUdGvFTHN9KQ_zkBW8Zu9p0hiwpC3oKyhibXtQ?Download=1
 
 [dl]: http://i.imgur.com/gQvPgr0.png
 
@@ -262,9 +262,9 @@ from spikex.defaults import spacy_version
 if spacy_version >= 3:
   from spacy.language import Language
 
-    @Language.factory("sentx")
-    def create_sentx(nlp, name):
-        return SentX()
+  @Language.factory("sentx")
+  def create_sentx(nlp, name):
+      return SentX()
 
 nlp = spacy_load("en_core_web_sm")
 sentx_pipe = SentX() if spacy_version < 3 else "sentx"

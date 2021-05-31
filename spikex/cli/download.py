@@ -12,9 +12,9 @@ WG_LATEST_TABLE = {
 }
 
 WG_TABLE = {
-    "enwiki_core-20210520": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Eco6n99fPu5NktUaF7SkzpkBk7Ru3ZaH-BD_tr8Tq6sHWw?Download=1",
-    "simplewiki_core-20210520": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EbwV-u0YtVdNo4f02X7HbDsBs3BRTEu4ix-_n0JYLKOJzQ?Download=1",
-    "itwiki_core-20210520": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EY7anrn0R0JApoIryZck2b0Bl6T_o3YGNAbCpg6eAHXPrg?Download=1",
+    "enwiki_core-20210520": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EeIb238HAmtCruMvhzZdOl8BIEBU_09XV5FnHE4SVmYzBQ?Download=1",
+    "simplewiki_core-20210520": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EWdpEV_R4JVEk_ZwvJTrAEUBsLpmJMxyWDa13sFOzQAo3Q?Download=1",
+    "itwiki_core-20210520": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EcWYGXp5SUdGvFTHN9KQ_zkBW8Zu9p0hiwpC3oKyhibXtQ?Download=1",
 
     "enwiki_core-20210401": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/Eco6n99fPu5NktUaF7SkzpkBk7Ru3ZaH-BD_tr8Tq6sHWw?Download=1",
     "simplewiki_core-20210401": "https://errequadrosrl-my.sharepoint.com/:u:/g/personal/paolo_arduin_errequadrosrl_onmicrosoft_com/EbwV-u0YtVdNo4f02X7HbDsBs3BRTEu4ix-_n0JYLKOJzQ?Download=1",
@@ -35,8 +35,7 @@ def download_wikigraph(wg_name: str):
     wg_name : str
         Name of the `WikiGraph` to download.
     """
-    if wg_name in WG_LATEST_TABLE:
-        wg_name = WG_TABLE[wg_name]
+    wg_name = WG_LATEST_TABLE.get(wg_name, wg_name)
     wg_url = WG_TABLE.get(wg_name)
     if wg_url is None:
         msg.fail(

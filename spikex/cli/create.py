@@ -64,12 +64,13 @@ def create_wikigraph(
         graph_path.mkdir()
     with msg.loading("dump to disk..."):
         wg.dump(graph_path)
+    spikex_ver = ".".join(spikex_version.split(".")[:2])
     meta = get_meta()
     meta["name"] = graph_name
     meta["wiki"] = wiki
     meta["version"] = wg.version
-    meta["spikex_version"] = f">={spikex_version}"
-    meta["fullname"] = f"{graph_name}-{spikex_version}"
+    meta["spikex_version"] = f">={spikex_ver}"
+    meta["fullname"] = f"{graph_name}-{spikex_ver}"
     meta["sources"].append("Wikipedia")
     meta_path = graph_path.joinpath("meta.json")
     meta_path.write_text(json_dumps(meta, indent=2))
