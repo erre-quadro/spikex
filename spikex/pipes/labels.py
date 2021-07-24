@@ -31,8 +31,8 @@ class LabelX:
         self._only_longest = only_longest
         if not labelings or labelings is None:
             return
-        for label, patterns in labelings:
-            self.add(label, patterns)
+        label, patterns = labelings
+        self.add(label, patterns)
 
     def add(self, label, patterns, on_match=None):
         """
