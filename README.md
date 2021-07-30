@@ -220,7 +220,7 @@ patterns = [
   [{"LOWER": "computer"}, {"LOWER": "system"}],
   [{"LOWER": "system"}, {"LOWER": "engineer"}],
 ]
-labelx = LabelX(nlp.vocab, ("TEST", patterns), validate=True, only_longest=True)
+labelx = LabelX(nlp.vocab, [("TEST", patterns)], validate=True, only_longest=True)
 doc = labelx(doc)
 for labeling in doc._.labelings:
   print(labeling, f"[{labeling.label_}]")
